@@ -1,36 +1,62 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WIS CRM
 
-## Getting Started
+CRM visual de uso personal para WIS Agency.
 
-First, run the development server:
+## Que hace
+
+1. Muestra prospectos en pipeline tipo kanban.
+2. Guarda datos en Supabase.
+3. Expone endpoints internos para crear, actualizar y listar prospectos y actividades.
+4. Esta pensado para integrarse con Telegram + n8n + Supabase.
+
+## Variables de entorno
+
+Copiar `.env.example` a `.env.local` para desarrollo.
+
+Variables requeridas:
+
+1. `NEXT_PUBLIC_SUPABASE_URL`
+2. `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+3. `SUPABASE_URL`
+4. `SUPABASE_SERVICE_ROLE_KEY`
+
+Variables recomendadas para produccion:
+
+1. `BASIC_AUTH_USER`
+2. `BASIC_AUTH_PASSWORD`
+3. `PORT`
+
+## Desarrollo local
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abrir [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Produccion
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm install
+npm run build
+npm run start
+```
 
-## Learn More
+## Seguridad
 
-To learn more about Next.js, take a look at the following resources:
+Si definis `BASIC_AUTH_USER` y `BASIC_AUTH_PASSWORD`, la app y sus endpoints quedan protegidos con autenticacion basica.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Esto es importante si la vas a publicar en Easypanel para uso personal.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Modelo de datos actual
 
-## Deploy on Vercel
+La app ya esta preparada para trabajar con:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. `prospects`
+2. `activities`
+3. `follow_ups`
+4. `reminders`
+5. `raw_messages`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Eso permite que n8n y Telegram escriban sobre la misma base que luego ves en la interfaz web.

@@ -1,65 +1,258 @@
-import Image from "next/image";
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import Header from '@/app/components/Header'
+import KanbanBoard from '@/app/components/KanbanBoard'
+import NewProspectForm from '@/app/components/NewProspectForm'
+import ProspectModal from '@/app/components/ProspectModal'
+import WorkspaceTabs, { WorkspaceTab } from '@/app/components/WorkspaceTabs'
+import FollowUpsPanel from '@/app/components/FollowUpsPanel'
+import RemindersPanel from '@/app/components/RemindersPanel'
+import InboxPanel from '@/app/components/InboxPanel'
+import {
+  Prospect,
+  Stage,
+  FollowUp,
+  Reminder,
+  RawMessage,
+  Activity,
+  Priority,
+  ReminderCategory,
+} from '@/app/lib/types'
 
 export default function Home() {
+  const [prospects, setProspects] = useState<Prospect[]>([])
+  const [followUps, setFollowUps] = useState<FollowUp[]>([])
+  const [reminders, setReminders] = useState<Reminder[]>([])
+  const [messages, setMessages] = useState<RawMessage[]>([])
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [nowTimestamp, setNowTimestamp] = useState(() => Date.now())
+  const [loading, setLoading] = useState(true)
+  const [showNewForm, setShowNewForm] = useState(false)
+  const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null)
+  const [boardKey, setBoardKey] = useState(0)
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>('pipeline')
+
+  const refreshBoard = () => setBoardKey((value) => value + 1)
+
+  const fetchAll = useCallback(async () => {
+    try {
+      setNowTimestamp(Date.now())
+      const [prospectsRes, followUpsRes, remindersRes, messagesRes, activitiesRes] = await Promise.all([
+        fetch('/api/prospects'),
+        fetch('/api/followups'),
+        fetch('/api/reminders'),
+        fetch('/api/messages'),
+        fetch('/api/activities'),
+      ])
+
+      const [prospectsData, followUpsData, remindersData, messagesData, activitiesData] = await Promise.all([
+        prospectsRes.json(),
+        followUpsRes.json(),
+        remindersRes.json(),
+        messagesRes.json(),
+        activitiesRes.json(),
+      ])
+
+      setProspects(Array.isArray(prospectsData) ? prospectsData : [])
+      setFollowUps(Array.isArray(followUpsData) ? followUpsData : [])
+      setReminders(Array.isArray(remindersData) ? remindersData : [])
+      setMessages(Array.isArray(messagesData) ? messagesData : [])
+      setActivities(Array.isArray(activitiesData) ? activitiesData : [])
+      refreshBoard()
+    } catch {
+      setProspects([])
+      setFollowUps([])
+      setReminders([])
+      setMessages([])
+      setActivities([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      void fetchAll()
+    })
+  }, [fetchAll])
+
+  const selectedProspect = selectedProspectId
+    ? prospects.find((prospect) => prospect.id === selectedProspectId) ?? null
+    : null
+
+  const handleStageChange = async (prospectId: string, newStage: Stage) => {
+    await fetch(`/api/prospects/${prospectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: newStage }),
+    })
+    setProspects((prev) =>
+      prev.map((prospect) => (prospect.id === prospectId ? { ...prospect, stage: newStage } : prospect))
+    )
+  }
+
+  const handleCreated = async () => {
+    setShowNewForm(false)
+    await fetchAll()
+  }
+
+  const handleUpdated = async () => {
+    await fetchAll()
+  }
+
+  const handleDeleted = async () => {
+    setSelectedProspectId(null)
+    await fetchAll()
+  }
+
+  const handleCreateFollowUp = async (payload: {
+    prospect_id: string
+    title: string
+    notes: string
+    due_at: string
+    priority: Priority
+  }) => {
+    await fetch('/api/followups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    await fetchAll()
+  }
+
+  const handleToggleFollowUpDone = async (followUp: FollowUp) => {
+    await fetch(`/api/followups/${followUp.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...followUp,
+        status: followUp.status === 'hecho' ? 'pendiente' : 'hecho',
+      }),
+    })
+    await fetchAll()
+  }
+
+  const handleCreateReminder = async (payload: {
+    prospect_id: string
+    title: string
+    message: string
+    remind_at: string
+    category: ReminderCategory
+  }) => {
+    await fetch('/api/reminders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...payload,
+        prospect_id: payload.prospect_id || null,
+      }),
+    })
+    await fetchAll()
+  }
+
+  const handleToggleReminderDone = async (reminder: Reminder) => {
+    await fetch(`/api/reminders/${reminder.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...reminder,
+        status: reminder.status === 'hecho' ? 'pendiente' : 'hecho',
+      }),
+    })
+    await fetchAll()
+  }
+
+  const openProspect = (prospectId: string) => {
+    setSelectedProspectId(prospectId)
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="flex min-h-screen flex-col bg-[#0d0d0d]">
+      <Header
+        prospects={prospects}
+        followUps={followUps}
+        reminders={reminders}
+        messages={messages}
+        nowTimestamp={nowTimestamp}
+        onNewProspect={() => setShowNewForm(true)}
+        onRefresh={fetchAll}
+      />
+
+      <div className="mx-6 mb-4 h-px bg-[#1a1a1a]" />
+
+      <WorkspaceTabs activeTab={activeTab} onChange={setActiveTab} />
+
+      <div className="flex-1 overflow-hidden">
+        {loading ? (
+          <div className="flex h-[50vh] items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#7c3aed] border-t-transparent" />
+              <span className="text-sm text-[#6b7280]">Cargando CRM...</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'pipeline' && (
+              <div className="h-full overflow-y-auto pb-6">
+                <KanbanBoard
+                  key={boardKey}
+                  initialProspects={prospects}
+                  onProspectClick={(prospect) => openProspect(prospect.id)}
+                  onStageChange={handleStageChange}
+                />
+              </div>
+            )}
+
+            {activeTab === 'seguimiento' && (
+              <div className="h-full overflow-y-auto">
+                <FollowUpsPanel
+                  followUps={followUps}
+                  prospects={prospects}
+                  onCreate={handleCreateFollowUp}
+                  onToggleDone={handleToggleFollowUpDone}
+                  onOpenProspect={openProspect}
+                />
+              </div>
+            )}
+
+            {activeTab === 'recordatorios' && (
+              <div className="h-full overflow-y-auto">
+                <RemindersPanel
+                  reminders={reminders}
+                  prospects={prospects}
+                  onCreate={handleCreateReminder}
+                  onToggleDone={handleToggleReminderDone}
+                  onOpenProspect={openProspect}
+                />
+              </div>
+            )}
+
+            {activeTab === 'inbox' && (
+              <div className="h-full overflow-y-auto">
+                <InboxPanel messages={messages} activities={activities} onOpenProspect={openProspect} />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {showNewForm && (
+        <NewProspectForm
+          onClose={() => setShowNewForm(false)}
+          onCreated={handleCreated}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      )}
+
+      {selectedProspect && (
+        <ProspectModal
+          key={selectedProspect.id}
+          prospect={selectedProspect}
+          onClose={() => setSelectedProspectId(null)}
+          onUpdated={handleUpdated}
+          onDeleted={handleDeleted}
+        />
+      )}
     </div>
-  );
+  )
 }
