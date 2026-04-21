@@ -15,6 +15,30 @@ export type ReminderCategory = 'manual' | 'cumpleanos' | 'seguimiento' | 'sugere
 export type Priority = 'baja' | 'media' | 'alta'
 export type MessageDirection = 'inbound' | 'outbound'
 export type MessageKind = 'text' | 'audio' | 'system'
+export type GoalStatus = 'activo' | 'pausado' | 'cumplido' | 'cancelado'
+export type GoalTaskStatus = 'pendiente' | 'hecho'
+export type GoalTaskCategory =
+  | 'contactos'
+  | 'emails'
+  | 'llamadas'
+  | 'propuestas'
+  | 'reuniones'
+  | 'linkedin'
+  | 'scraping'
+  | 'estrategia'
+  | 'follow_up'
+  | 'otro'
+export type WorkActivityType =
+  | 'contacto'
+  | 'email'
+  | 'llamada'
+  | 'propuesta'
+  | 'reunion'
+  | 'linkedin'
+  | 'scraping'
+  | 'follow_up'
+  | 'estrategia'
+  | 'otro'
 
 export interface Prospect {
   id: string
@@ -85,6 +109,80 @@ export interface RawMessage {
   prospect?: Pick<Prospect, 'id' | 'name' | 'company' | 'stage'>
 }
 
+export interface MonthlyGoal {
+  id: string
+  title: string
+  description: string | null
+  month: string
+  target_value: number
+  current_value: number
+  unit: string
+  status: GoalStatus
+  created_at: string
+  updated_at: string
+  tasks?: GoalTask[]
+}
+
+export interface GoalTask {
+  id: string
+  goal_id: string | null
+  title: string
+  description: string | null
+  category: GoalTaskCategory
+  target_count: number
+  completed_count: number
+  status: GoalTaskStatus
+  due_date: string | null
+  created_at: string
+  updated_at: string
+  goal?: Pick<MonthlyGoal, 'id' | 'title' | 'month'>
+}
+
+export interface DailyWorkPlan {
+  id: string
+  plan_date: string
+  summary: string
+  priorities: {
+    title: string
+    reason?: string
+    goal_id?: string
+    prospect_id?: string
+  }[]
+  score_start: number | null
+  generated_by: string
+  created_at: string
+}
+
+export interface DailyWorkScore {
+  id: string
+  score_date: string
+  score: number
+  contacts_count: number
+  follow_ups_done: number
+  proposals_sent: number
+  meetings_count: number
+  goal_progress_points: number
+  notes: string | null
+  recommendations: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface WorkActivityLog {
+  id: string
+  activity_date: string
+  type: WorkActivityType
+  quantity: number
+  title: string
+  notes: string | null
+  prospect_id: string | null
+  goal_id: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+  prospect?: Pick<Prospect, 'id' | 'name' | 'company' | 'stage'>
+  goal?: Pick<MonthlyGoal, 'id' | 'title' | 'month'>
+}
+
 export const STAGES: { id: Stage; label: string; color: string; bg: string }[] = [
   { id: 'frio', label: 'Frio', color: '#6b7280', bg: '#6b728015' },
   { id: 'contactado', label: 'Contactado', color: '#3b82f6', bg: '#3b82f615' },
@@ -124,4 +222,37 @@ export const REMINDER_CATEGORIES: { id: ReminderCategory; label: string }[] = [
   { id: 'cumpleanos', label: 'Cumpleanos' },
   { id: 'seguimiento', label: 'Seguimiento' },
   { id: 'sugerencia_diaria', label: 'Sugerencia diaria' },
+]
+
+export const GOAL_STATUSES: { id: GoalStatus; label: string }[] = [
+  { id: 'activo', label: 'Activo' },
+  { id: 'pausado', label: 'Pausado' },
+  { id: 'cumplido', label: 'Cumplido' },
+  { id: 'cancelado', label: 'Cancelado' },
+]
+
+export const GOAL_TASK_CATEGORIES: { id: GoalTaskCategory; label: string }[] = [
+  { id: 'contactos', label: 'Contactos' },
+  { id: 'emails', label: 'Emails' },
+  { id: 'llamadas', label: 'Llamadas' },
+  { id: 'propuestas', label: 'Propuestas' },
+  { id: 'reuniones', label: 'Reuniones' },
+  { id: 'linkedin', label: 'LinkedIn' },
+  { id: 'scraping', label: 'Scraping' },
+  { id: 'estrategia', label: 'Estrategia' },
+  { id: 'follow_up', label: 'Follow-up' },
+  { id: 'otro', label: 'Otro' },
+]
+
+export const WORK_ACTIVITY_TYPES: { id: WorkActivityType; label: string }[] = [
+  { id: 'contacto', label: 'Contacto nuevo' },
+  { id: 'email', label: 'Email enviado' },
+  { id: 'llamada', label: 'Llamada' },
+  { id: 'propuesta', label: 'Propuesta enviada' },
+  { id: 'reunion', label: 'Reunion' },
+  { id: 'linkedin', label: 'LinkedIn' },
+  { id: 'scraping', label: 'Scraping/lista' },
+  { id: 'follow_up', label: 'Follow-up hecho' },
+  { id: 'estrategia', label: 'Estrategia' },
+  { id: 'otro', label: 'Otro' },
 ]

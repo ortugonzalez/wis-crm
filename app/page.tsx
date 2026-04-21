@@ -9,6 +9,7 @@ import WorkspaceTabs, { WorkspaceTab } from '@/app/components/WorkspaceTabs'
 import FollowUpsPanel from '@/app/components/FollowUpsPanel'
 import RemindersPanel from '@/app/components/RemindersPanel'
 import InboxPanel from '@/app/components/InboxPanel'
+import GoalsPanel from '@/app/components/GoalsPanel'
 import {
   Prospect,
   Stage,
@@ -18,7 +19,23 @@ import {
   Activity,
   Priority,
   ReminderCategory,
+  DailyWorkPlan,
+  GoalTask,
+  GoalTaskCategory,
+  MonthlyGoal,
+  WorkActivityLog,
+  WorkActivityType,
 } from '@/app/lib/types'
+
+interface DailyScore {
+  score_date: string
+  score: number
+  contacts_count: number
+  follow_ups_done: number
+  proposals_sent: number
+  meetings_count: number
+  goal_progress_points: number
+}
 
 export default function Home() {
   const [prospects, setProspects] = useState<Prospect[]>([])
@@ -26,6 +43,10 @@ export default function Home() {
   const [reminders, setReminders] = useState<Reminder[]>([])
   const [messages, setMessages] = useState<RawMessage[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
+  const [goals, setGoals] = useState<MonthlyGoal[]>([])
+  const [dailyPlans, setDailyPlans] = useState<DailyWorkPlan[]>([])
+  const [workActivities, setWorkActivities] = useState<WorkActivityLog[]>([])
+  const [dailyScore, setDailyScore] = useState<DailyScore | null>(null)
   const [nowTimestamp, setNowTimestamp] = useState(() => Date.now())
   const [loading, setLoading] = useState(true)
   const [showNewForm, setShowNewForm] = useState(false)
@@ -38,20 +59,48 @@ export default function Home() {
   const fetchAll = useCallback(async () => {
     try {
       setNowTimestamp(Date.now())
-      const [prospectsRes, followUpsRes, remindersRes, messagesRes, activitiesRes] = await Promise.all([
+      const [
+        prospectsRes,
+        followUpsRes,
+        remindersRes,
+        messagesRes,
+        activitiesRes,
+        goalsRes,
+        dailyPlansRes,
+        workActivitiesRes,
+        dailyScoreRes,
+      ] = await Promise.all([
         fetch('/api/prospects'),
         fetch('/api/followups'),
         fetch('/api/reminders'),
         fetch('/api/messages'),
         fetch('/api/activities'),
+        fetch('/api/goals'),
+        fetch('/api/daily-plans'),
+        fetch('/api/work-activities'),
+        fetch('/api/daily-score'),
       ])
 
-      const [prospectsData, followUpsData, remindersData, messagesData, activitiesData] = await Promise.all([
+      const [
+        prospectsData,
+        followUpsData,
+        remindersData,
+        messagesData,
+        activitiesData,
+        goalsData,
+        dailyPlansData,
+        workActivitiesData,
+        dailyScoreData,
+      ] = await Promise.all([
         prospectsRes.json(),
         followUpsRes.json(),
         remindersRes.json(),
         messagesRes.json(),
         activitiesRes.json(),
+        goalsRes.json(),
+        dailyPlansRes.json(),
+        workActivitiesRes.json(),
+        dailyScoreRes.json(),
       ])
 
       setProspects(Array.isArray(prospectsData) ? prospectsData : [])
@@ -59,6 +108,10 @@ export default function Home() {
       setReminders(Array.isArray(remindersData) ? remindersData : [])
       setMessages(Array.isArray(messagesData) ? messagesData : [])
       setActivities(Array.isArray(activitiesData) ? activitiesData : [])
+      setGoals(Array.isArray(goalsData) ? goalsData : [])
+      setDailyPlans(Array.isArray(dailyPlansData) ? dailyPlansData : [])
+      setWorkActivities(Array.isArray(workActivitiesData) ? workActivitiesData : [])
+      setDailyScore(dailyScoreData && !dailyScoreData.error ? dailyScoreData : null)
       refreshBoard()
     } catch {
       setProspects([])
@@ -66,6 +119,10 @@ export default function Home() {
       setReminders([])
       setMessages([])
       setActivities([])
+      setGoals([])
+      setDailyPlans([])
+      setWorkActivities([])
+      setDailyScore(null)
     } finally {
       setLoading(false)
     }
@@ -163,6 +220,64 @@ export default function Home() {
     await fetchAll()
   }
 
+  const handleCreateGoal = async (payload: {
+    title: string
+    description: string
+    month: string
+    target_value: number
+    unit: string
+  }) => {
+    await fetch('/api/goals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    await fetchAll()
+  }
+
+  const handleCreateGoalTask = async (payload: {
+    goal_id: string
+    title: string
+    category: GoalTaskCategory
+    target_count: number
+    due_date: string
+  }) => {
+    await fetch('/api/goal-tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    await fetchAll()
+  }
+
+  const handleToggleGoalTask = async (task: GoalTask) => {
+    await fetch(`/api/goal-tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        completed_count: task.status === 'hecho' ? 0 : task.target_count,
+        status: task.status === 'hecho' ? 'pendiente' : 'hecho',
+      }),
+    })
+    await fetchAll()
+  }
+
+  const handleLogWorkActivity = async (payload: {
+    type: WorkActivityType
+    quantity: number
+    title: string
+    notes: string
+    prospect_id: string
+    goal_id: string
+  }) => {
+    await fetch('/api/work-activities', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    await fetchAll()
+  }
+
   const openProspect = (prospectId: string) => {
     setSelectedProspectId(prospectId)
   }
@@ -200,6 +315,22 @@ export default function Home() {
                   initialProspects={prospects}
                   onProspectClick={(prospect) => openProspect(prospect.id)}
                   onStageChange={handleStageChange}
+                />
+              </div>
+            )}
+
+            {activeTab === 'objetivos' && (
+              <div className="h-full overflow-y-auto">
+                <GoalsPanel
+                  goals={goals}
+                  dailyPlans={dailyPlans}
+                  workActivities={workActivities}
+                  dailyScore={dailyScore}
+                  prospects={prospects}
+                  onCreateGoal={handleCreateGoal}
+                  onCreateTask={handleCreateGoalTask}
+                  onToggleTask={handleToggleGoalTask}
+                  onLogActivity={handleLogWorkActivity}
                 />
               </div>
             )}
