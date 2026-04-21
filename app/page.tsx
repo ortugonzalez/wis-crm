@@ -20,22 +20,14 @@ import {
   Priority,
   ReminderCategory,
   DailyWorkPlan,
+  DailyWorkScore,
+  DailyCloseout,
   GoalTask,
   GoalTaskCategory,
   MonthlyGoal,
   WorkActivityLog,
   WorkActivityType,
 } from '@/app/lib/types'
-
-interface DailyScore {
-  score_date: string
-  score: number
-  contacts_count: number
-  follow_ups_done: number
-  proposals_sent: number
-  meetings_count: number
-  goal_progress_points: number
-}
 
 export default function Home() {
   const [prospects, setProspects] = useState<Prospect[]>([])
@@ -46,7 +38,9 @@ export default function Home() {
   const [goals, setGoals] = useState<MonthlyGoal[]>([])
   const [dailyPlans, setDailyPlans] = useState<DailyWorkPlan[]>([])
   const [workActivities, setWorkActivities] = useState<WorkActivityLog[]>([])
-  const [dailyScore, setDailyScore] = useState<DailyScore | null>(null)
+  const [dailyScore, setDailyScore] = useState<DailyWorkScore | null>(null)
+  const [dailyScores, setDailyScores] = useState<DailyWorkScore[]>([])
+  const [dailyCloseouts, setDailyCloseouts] = useState<DailyCloseout[]>([])
   const [nowTimestamp, setNowTimestamp] = useState(() => Date.now())
   const [loading, setLoading] = useState(true)
   const [showNewForm, setShowNewForm] = useState(false)
@@ -69,6 +63,8 @@ export default function Home() {
         dailyPlansRes,
         workActivitiesRes,
         dailyScoreRes,
+        dailyScoresRes,
+        dailyCloseoutsRes,
       ] = await Promise.all([
         fetch('/api/prospects'),
         fetch('/api/followups'),
@@ -79,6 +75,8 @@ export default function Home() {
         fetch('/api/daily-plans'),
         fetch('/api/work-activities'),
         fetch('/api/daily-score'),
+        fetch('/api/daily-scores'),
+        fetch('/api/daily-closeouts'),
       ])
 
       const [
@@ -91,6 +89,8 @@ export default function Home() {
         dailyPlansData,
         workActivitiesData,
         dailyScoreData,
+        dailyScoresData,
+        dailyCloseoutsData,
       ] = await Promise.all([
         prospectsRes.json(),
         followUpsRes.json(),
@@ -101,6 +101,8 @@ export default function Home() {
         dailyPlansRes.json(),
         workActivitiesRes.json(),
         dailyScoreRes.json(),
+        dailyScoresRes.json(),
+        dailyCloseoutsRes.json(),
       ])
 
       setProspects(Array.isArray(prospectsData) ? prospectsData : [])
@@ -112,6 +114,8 @@ export default function Home() {
       setDailyPlans(Array.isArray(dailyPlansData) ? dailyPlansData : [])
       setWorkActivities(Array.isArray(workActivitiesData) ? workActivitiesData : [])
       setDailyScore(dailyScoreData && !dailyScoreData.error ? dailyScoreData : null)
+      setDailyScores(Array.isArray(dailyScoresData) ? dailyScoresData : [])
+      setDailyCloseouts(Array.isArray(dailyCloseoutsData) ? dailyCloseoutsData : [])
       refreshBoard()
     } catch {
       setProspects([])
@@ -123,6 +127,8 @@ export default function Home() {
       setDailyPlans([])
       setWorkActivities([])
       setDailyScore(null)
+      setDailyScores([])
+      setDailyCloseouts([])
     } finally {
       setLoading(false)
     }
@@ -226,6 +232,7 @@ export default function Home() {
     month: string
     target_value: number
     unit: string
+    business_area: string
   }) => {
     await fetch('/api/goals', {
       method: 'POST',
@@ -278,6 +285,11 @@ export default function Home() {
     await fetchAll()
   }
 
+  const handleGenerateDailyPlan = async () => {
+    await fetch('/api/daily-plans/generate', { method: 'POST' })
+    await fetchAll()
+  }
+
   const openProspect = (prospectId: string) => {
     setSelectedProspectId(prospectId)
   }
@@ -324,13 +336,18 @@ export default function Home() {
                 <GoalsPanel
                   goals={goals}
                   dailyPlans={dailyPlans}
+                  dailyScores={dailyScores}
+                  dailyCloseouts={dailyCloseouts}
                   workActivities={workActivities}
                   dailyScore={dailyScore}
                   prospects={prospects}
+                  followUps={followUps}
+                  reminders={reminders}
                   onCreateGoal={handleCreateGoal}
                   onCreateTask={handleCreateGoalTask}
                   onToggleTask={handleToggleGoalTask}
                   onLogActivity={handleLogWorkActivity}
+                  onGeneratePlan={handleGenerateDailyPlan}
                 />
               </div>
             )}

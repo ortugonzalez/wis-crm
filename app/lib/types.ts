@@ -39,6 +39,7 @@ export type WorkActivityType =
   | 'follow_up'
   | 'estrategia'
   | 'otro'
+export type ScoreSource = 'telegram_closeout' | 'manual' | 'system_preview'
 
 export interface Prospect {
   id: string
@@ -117,6 +118,7 @@ export interface MonthlyGoal {
   target_value: number
   current_value: number
   unit: string
+  business_area: string
   status: GoalStatus
   created_at: string
   updated_at: string
@@ -157,6 +159,8 @@ export interface DailyWorkScore {
   id: string
   score_date: string
   score: number
+  source: ScoreSource
+  closeout_id: string | null
   contacts_count: number
   follow_ups_done: number
   proposals_sent: number
@@ -166,6 +170,17 @@ export interface DailyWorkScore {
   recommendations: string | null
   created_at: string
   updated_at: string
+}
+
+export interface DailyCloseout {
+  id: string
+  closeout_date: string
+  raw_text: string
+  summary: string | null
+  wins: string | null
+  blockers: string | null
+  tomorrow_focus: string | null
+  created_at: string
 }
 
 export interface WorkActivityLog {
@@ -181,6 +196,28 @@ export interface WorkActivityLog {
   created_at: string
   prospect?: Pick<Prospect, 'id' | 'name' | 'company' | 'stage'>
   goal?: Pick<MonthlyGoal, 'id' | 'title' | 'month'>
+}
+
+export interface SalesCampaign {
+  id: string
+  name: string
+  business_area: string
+  target_channel: string
+  target_count: number
+  completed_count: number
+  status: 'activa' | 'pausada' | 'cerrada'
+  created_at: string
+  updated_at: string
+}
+
+export interface MessageTemplate {
+  id: string
+  name: string
+  channel: string
+  use_case: string
+  body: string
+  created_at: string
+  updated_at: string
 }
 
 export const STAGES: { id: Stage; label: string; color: string; bg: string }[] = [

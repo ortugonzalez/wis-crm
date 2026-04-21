@@ -56,6 +56,7 @@ export async function POST(req: Request) {
     target_value: Number(body.target_value || 1),
     current_value: Number(body.current_value || 0),
     unit: body.unit || 'acciones',
+    business_area: body.business_area || 'general',
     status: body.status || 'activo',
   }
 

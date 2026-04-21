@@ -13,6 +13,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     ...(body.target_value !== undefined ? { target_value: Number(body.target_value) } : {}),
     ...(body.current_value !== undefined ? { current_value: Number(body.current_value) } : {}),
     ...(body.unit !== undefined ? { unit: body.unit } : {}),
+    ...(body.business_area !== undefined ? { business_area: body.business_area || 'general' } : {}),
     ...(body.status !== undefined ? { status: body.status } : {}),
   }
 

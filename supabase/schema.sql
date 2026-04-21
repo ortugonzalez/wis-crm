@@ -94,6 +94,7 @@ create table if not exists monthly_goals (
   target_value integer not null default 1,
   current_value integer not null default 0,
   unit text not null default 'acciones',
+  business_area text not null default 'general',
   status text not null default 'activo',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -131,10 +132,23 @@ create table if not exists daily_work_plans (
   constraint daily_work_plans_score_check check (score_start is null or (score_start >= 0 and score_start <= 100))
 );
 
+create table if not exists daily_closeouts (
+  id uuid primary key default gen_random_uuid(),
+  closeout_date date not null default current_date,
+  raw_text text not null,
+  summary text,
+  wins text,
+  blockers text,
+  tomorrow_focus text,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists daily_work_scores (
   id uuid primary key default gen_random_uuid(),
-  score_date date not null default current_date unique,
+  score_date date not null default current_date,
   score integer not null default 0,
+  source text not null default 'telegram_closeout',
+  closeout_id uuid references daily_closeouts(id) on delete set null,
   contacts_count integer not null default 0,
   follow_ups_done integer not null default 0,
   proposals_sent integer not null default 0,
@@ -145,6 +159,29 @@ create table if not exists daily_work_scores (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint daily_work_scores_score_check check (score >= 0 and score <= 100)
+);
+
+create table if not exists sales_campaigns (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  business_area text not null default 'general',
+  target_channel text not null default 'otro',
+  target_count integer not null default 1,
+  completed_count integer not null default 0,
+  status text not null default 'activa',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint sales_campaigns_status_check check (status in ('activa', 'pausada', 'cerrada'))
+);
+
+create table if not exists message_templates (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  channel text not null default 'whatsapp',
+  use_case text not null default 'follow_up',
+  body text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 create table if not exists work_activity_log (
@@ -166,6 +203,10 @@ alter table prospects add column if not exists source text not null default 'man
 alter table prospects add column if not exists birthday date;
 alter table prospects add column if not exists last_contact_at timestamptz;
 alter table prospects add column if not exists next_action_at timestamptz;
+alter table monthly_goals add column if not exists business_area text not null default 'general';
+alter table daily_work_scores add column if not exists source text not null default 'telegram_closeout';
+alter table daily_work_scores add column if not exists closeout_id uuid references daily_closeouts(id) on delete set null;
+alter table daily_work_scores drop constraint if exists daily_work_scores_score_date_key;
 
 alter table activities add column if not exists metadata jsonb not null default '{}'::jsonb;
 
@@ -202,6 +243,16 @@ create trigger set_daily_work_scores_updated_at
 before update on daily_work_scores
 for each row execute function update_updated_at();
 
+drop trigger if exists set_sales_campaigns_updated_at on sales_campaigns;
+create trigger set_sales_campaigns_updated_at
+before update on sales_campaigns
+for each row execute function update_updated_at();
+
+drop trigger if exists set_message_templates_updated_at on message_templates;
+create trigger set_message_templates_updated_at
+before update on message_templates
+for each row execute function update_updated_at();
+
 create index if not exists idx_prospects_stage on prospects(stage);
 create index if not exists idx_prospects_company on prospects(company);
 create index if not exists idx_follow_ups_due_at on follow_ups(due_at);
@@ -217,6 +268,10 @@ create index if not exists idx_goal_tasks_due_date on goal_tasks(due_date);
 create index if not exists idx_daily_work_plans_plan_date on daily_work_plans(plan_date desc);
 create index if not exists idx_work_activity_log_activity_date on work_activity_log(activity_date desc);
 create index if not exists idx_work_activity_log_goal_id on work_activity_log(goal_id);
+create index if not exists idx_daily_closeouts_closeout_date on daily_closeouts(closeout_date desc);
+create index if not exists idx_daily_work_scores_score_date on daily_work_scores(score_date desc);
+create index if not exists idx_sales_campaigns_status on sales_campaigns(status);
+create index if not exists idx_message_templates_use_case on message_templates(use_case);
 
 alter table prospects enable row level security;
 alter table activities enable row level security;
@@ -228,6 +283,9 @@ alter table goal_tasks enable row level security;
 alter table daily_work_plans enable row level security;
 alter table daily_work_scores enable row level security;
 alter table work_activity_log enable row level security;
+alter table daily_closeouts enable row level security;
+alter table sales_campaigns enable row level security;
+alter table message_templates enable row level security;
 
 drop policy if exists "Allow all on prospects" on prospects;
 create policy "Allow all on prospects" on prospects for all using (true) with check (true);
@@ -258,6 +316,15 @@ create policy "Allow all on daily_work_scores" on daily_work_scores for all usin
 
 drop policy if exists "Allow all on work_activity_log" on work_activity_log;
 create policy "Allow all on work_activity_log" on work_activity_log for all using (true) with check (true);
+
+drop policy if exists "Allow all on daily_closeouts" on daily_closeouts;
+create policy "Allow all on daily_closeouts" on daily_closeouts for all using (true) with check (true);
+
+drop policy if exists "Allow all on sales_campaigns" on sales_campaigns;
+create policy "Allow all on sales_campaigns" on sales_campaigns for all using (true) with check (true);
+
+drop policy if exists "Allow all on message_templates" on message_templates;
+create policy "Allow all on message_templates" on message_templates for all using (true) with check (true);
 
 create or replace view crm_daily_brief as
 select
@@ -298,3 +365,58 @@ select
   meetings_count,
   least(20, points) as goal_progress_points
 from today_activity, goal_progress;
+
+create or replace view crm_goal_pacing as
+select
+  id,
+  title,
+  month,
+  business_area,
+  target_value,
+  current_value,
+  unit,
+  status,
+  greatest(1, extract(day from (date_trunc('month', month) + interval '1 month - 1 day'))::int) as days_in_month,
+  extract(day from least(current_date, (date_trunc('month', month) + interval '1 month - 1 day')::date))::int as day_of_month,
+  ceil((target_value::numeric / greatest(1, extract(day from (date_trunc('month', month) + interval '1 month - 1 day'))::int)) * extract(day from least(current_date, (date_trunc('month', month) + interval '1 month - 1 day')::date)))::int as expected_by_today,
+  greatest(0, ceil((target_value::numeric / greatest(1, extract(day from (date_trunc('month', month) + interval '1 month - 1 day'))::int)) * extract(day from least(current_date, (date_trunc('month', month) + interval '1 month - 1 day')::date)))::int - current_value) as behind_by,
+  case
+    when current_value >= target_value then 'cumplido'
+    when current_value >= ceil((target_value::numeric / greatest(1, extract(day from (date_trunc('month', month) + interval '1 month - 1 day'))::int)) * extract(day from least(current_date, (date_trunc('month', month) + interval '1 month - 1 day')::date))) then 'verde'
+    when current_value + 1 >= ceil((target_value::numeric / greatest(1, extract(day from (date_trunc('month', month) + interval '1 month - 1 day'))::int)) * extract(day from least(current_date, (date_trunc('month', month) + interval '1 month - 1 day')::date))) then 'amarillo'
+    else 'rojo'
+  end as pace_status
+from monthly_goals;
+
+create or replace view crm_activity_ranking_30d as
+select
+  type,
+  sum(quantity) as total_quantity,
+  count(*) as entries_count
+from work_activity_log
+where activity_date >= current_date - interval '30 days'
+group by type
+order by total_quantity desc;
+
+create or replace view crm_abandoned_prospects as
+select *
+from prospects
+where stage <> 'cliente'
+  and coalesce(last_contact_at, updated_at, created_at) < now() - interval '14 days'
+order by coalesce(last_contact_at, updated_at, created_at) asc;
+
+create or replace view crm_upcoming_birthdays as
+select
+  *,
+  make_date(extract(year from current_date)::int, extract(month from birthday)::int, extract(day from birthday)::int) as birthday_this_year
+from prospects
+where birthday is not null
+  and make_date(extract(year from current_date)::int, extract(month from birthday)::int, extract(day from birthday)::int)
+    between current_date and current_date + interval '14 days'
+order by birthday_this_year asc;
+
+create or replace view crm_pipeline_future_signal as
+select
+  (select count(*) from prospects where stage = 'reunion') as reuniones_en_pipeline,
+  (select count(*) from prospects where stage = 'propuesta') as propuestas_en_pipeline,
+  (select count(*) from follow_ups where status = 'pendiente' and due_at between now() and now() + interval '14 days') as followups_proximos_14d;
