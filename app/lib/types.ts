@@ -201,13 +201,20 @@ export interface WorkActivityLog {
 export interface SalesCampaign {
   id: string
   name: string
+  objective: string | null
   business_area: string
   target_channel: string
   target_count: number
   completed_count: number
+  daily_target: number
+  start_date: string | null
+  end_date: string | null
+  goal_id: string | null
+  notes: string | null
   status: 'activa' | 'pausada' | 'cerrada'
   created_at: string
   updated_at: string
+  goal?: Pick<MonthlyGoal, 'id' | 'title' | 'month'>
 }
 
 export interface MessageTemplate {
@@ -215,7 +222,96 @@ export interface MessageTemplate {
   name: string
   channel: string
   use_case: string
+  tone: string
   body: string
+  success_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface CommercialPlaybook {
+  id: string
+  name: string
+  segment: string
+  channel: string
+  opening_message: string
+  follow_up_message: string
+  proposal_angle: string
+  qualification_questions: string[]
+  status: 'activo' | 'pausado'
+  created_at: string
+  updated_at: string
+}
+
+export interface CommercialEngine {
+  mission: string
+  forecast: {
+    targetClients: number
+    currentClients: number
+    expectedByToday: number
+    weightedPipeline: number
+    projectedClients: number
+    status: 'verde' | 'amarillo' | 'rojo'
+    message: string
+  }
+  todayActions: string[]
+  risks: string[]
+  opportunities: string[]
+  pipeline: {
+    cold: number
+    contacted: number
+    meetings: number
+    proposals: number
+    clients: number
+  }
+  suggestedMessages: {
+    title: string
+    body: string
+  }[]
+  weeklyFocus: string[]
+}
+
+export type SecretaryTaskStatus = 'pendiente' | 'en_progreso' | 'hecha' | 'postergada' | 'cancelada'
+export type SecretaryMode = 'liviano' | 'normal' | 'sprint' | 'pausa'
+
+export interface SecretaryTask {
+  id: string
+  task_date: string
+  task_type: string
+  title: string
+  instruction: string
+  expected_response: string | null
+  status: SecretaryTaskStatus
+  priority: Priority
+  step_number: number
+  due_at: string | null
+  reminded_at: string | null
+  completed_at: string | null
+  attempts: number
+  payload: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface SecretaryEvent {
+  id: string
+  event_type: string
+  summary: string
+  raw_text: string | null
+  task_id: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+}
+
+export interface SecretaryPreferences {
+  id: string
+  singleton_key: string
+  mode: SecretaryMode
+  work_start_hour: number
+  work_end_hour: number
+  reminder_minutes: number
+  max_attempts: number
+  max_open_tasks: number
   created_at: string
   updated_at: string
 }

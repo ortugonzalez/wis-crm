@@ -164,10 +164,16 @@ create table if not exists daily_work_scores (
 create table if not exists sales_campaigns (
   id uuid primary key default gen_random_uuid(),
   name text not null,
+  objective text,
   business_area text not null default 'general',
   target_channel text not null default 'otro',
   target_count integer not null default 1,
   completed_count integer not null default 0,
+  daily_target integer not null default 10,
+  start_date date default current_date,
+  end_date date,
+  goal_id uuid references monthly_goals(id) on delete set null,
+  notes text,
   status text not null default 'activa',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -179,9 +185,74 @@ create table if not exists message_templates (
   name text not null,
   channel text not null default 'whatsapp',
   use_case text not null default 'follow_up',
+  tone text not null default 'directo',
   body text not null,
+  success_count integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+create table if not exists commercial_playbooks (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  segment text not null default 'general',
+  channel text not null default 'whatsapp',
+  opening_message text not null,
+  follow_up_message text not null,
+  proposal_angle text not null,
+  qualification_questions jsonb not null default '[]'::jsonb,
+  status text not null default 'activo',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint commercial_playbooks_status_check check (status in ('activo', 'pausado'))
+);
+
+create table if not exists secretary_tasks (
+  id uuid primary key default gen_random_uuid(),
+  task_date date not null default current_date,
+  task_type text not null default 'micro_mission',
+  title text not null,
+  instruction text not null,
+  expected_response text,
+  status text not null default 'pendiente',
+  priority text not null default 'media',
+  step_number integer not null default 1,
+  due_at timestamptz,
+  reminded_at timestamptz,
+  completed_at timestamptz,
+  attempts integer not null default 0,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint secretary_tasks_status_check check (status in ('pendiente', 'en_progreso', 'hecha', 'postergada', 'cancelada')),
+  constraint secretary_tasks_priority_check check (priority in ('baja', 'media', 'alta')),
+  constraint secretary_tasks_attempts_check check (attempts >= 0)
+);
+
+create table if not exists secretary_events (
+  id uuid primary key default gen_random_uuid(),
+  event_type text not null,
+  summary text not null,
+  raw_text text,
+  task_id uuid references secretary_tasks(id) on delete set null,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists secretary_preferences (
+  id uuid primary key default gen_random_uuid(),
+  singleton_key text not null default 'ortu' unique,
+  mode text not null default 'normal',
+  work_start_hour integer not null default 9,
+  work_end_hour integer not null default 18,
+  reminder_minutes integer not null default 45,
+  max_attempts integer not null default 3,
+  max_open_tasks integer not null default 1,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint secretary_preferences_mode_check check (mode in ('liviano', 'normal', 'sprint', 'pausa')),
+  constraint secretary_preferences_hours_check check (work_start_hour between 0 and 23 and work_end_hour between 0 and 23),
+  constraint secretary_preferences_positive_check check (reminder_minutes > 0 and max_attempts > 0 and max_open_tasks > 0)
 );
 
 create table if not exists work_activity_log (
@@ -207,6 +278,17 @@ alter table monthly_goals add column if not exists business_area text not null d
 alter table daily_work_scores add column if not exists source text not null default 'telegram_closeout';
 alter table daily_work_scores add column if not exists closeout_id uuid references daily_closeouts(id) on delete set null;
 alter table daily_work_scores drop constraint if exists daily_work_scores_score_date_key;
+alter table sales_campaigns add column if not exists objective text;
+alter table sales_campaigns add column if not exists daily_target integer not null default 10;
+alter table sales_campaigns add column if not exists start_date date default current_date;
+alter table sales_campaigns add column if not exists end_date date;
+alter table sales_campaigns add column if not exists goal_id uuid references monthly_goals(id) on delete set null;
+alter table sales_campaigns add column if not exists notes text;
+alter table message_templates add column if not exists tone text not null default 'directo';
+alter table message_templates add column if not exists success_count integer not null default 0;
+insert into secretary_preferences (singleton_key)
+values ('ortu')
+on conflict (singleton_key) do nothing;
 
 alter table activities add column if not exists metadata jsonb not null default '{}'::jsonb;
 
@@ -253,6 +335,21 @@ create trigger set_message_templates_updated_at
 before update on message_templates
 for each row execute function update_updated_at();
 
+drop trigger if exists set_commercial_playbooks_updated_at on commercial_playbooks;
+create trigger set_commercial_playbooks_updated_at
+before update on commercial_playbooks
+for each row execute function update_updated_at();
+
+drop trigger if exists set_secretary_tasks_updated_at on secretary_tasks;
+create trigger set_secretary_tasks_updated_at
+before update on secretary_tasks
+for each row execute function update_updated_at();
+
+drop trigger if exists set_secretary_preferences_updated_at on secretary_preferences;
+create trigger set_secretary_preferences_updated_at
+before update on secretary_preferences
+for each row execute function update_updated_at();
+
 create index if not exists idx_prospects_stage on prospects(stage);
 create index if not exists idx_prospects_company on prospects(company);
 create index if not exists idx_follow_ups_due_at on follow_ups(due_at);
@@ -271,7 +368,15 @@ create index if not exists idx_work_activity_log_goal_id on work_activity_log(go
 create index if not exists idx_daily_closeouts_closeout_date on daily_closeouts(closeout_date desc);
 create index if not exists idx_daily_work_scores_score_date on daily_work_scores(score_date desc);
 create index if not exists idx_sales_campaigns_status on sales_campaigns(status);
+create index if not exists idx_sales_campaigns_goal_id on sales_campaigns(goal_id);
+create index if not exists idx_sales_campaigns_dates on sales_campaigns(start_date, end_date);
 create index if not exists idx_message_templates_use_case on message_templates(use_case);
+create index if not exists idx_commercial_playbooks_status on commercial_playbooks(status);
+create index if not exists idx_commercial_playbooks_segment on commercial_playbooks(segment);
+create index if not exists idx_secretary_tasks_status on secretary_tasks(status);
+create index if not exists idx_secretary_tasks_task_date on secretary_tasks(task_date desc);
+create index if not exists idx_secretary_tasks_due_at on secretary_tasks(due_at);
+create index if not exists idx_secretary_events_created_at on secretary_events(created_at desc);
 
 alter table prospects enable row level security;
 alter table activities enable row level security;
@@ -286,6 +391,10 @@ alter table work_activity_log enable row level security;
 alter table daily_closeouts enable row level security;
 alter table sales_campaigns enable row level security;
 alter table message_templates enable row level security;
+alter table commercial_playbooks enable row level security;
+alter table secretary_tasks enable row level security;
+alter table secretary_events enable row level security;
+alter table secretary_preferences enable row level security;
 
 drop policy if exists "Allow all on prospects" on prospects;
 create policy "Allow all on prospects" on prospects for all using (true) with check (true);
@@ -325,6 +434,18 @@ create policy "Allow all on sales_campaigns" on sales_campaigns for all using (t
 
 drop policy if exists "Allow all on message_templates" on message_templates;
 create policy "Allow all on message_templates" on message_templates for all using (true) with check (true);
+
+drop policy if exists "Allow all on commercial_playbooks" on commercial_playbooks;
+create policy "Allow all on commercial_playbooks" on commercial_playbooks for all using (true) with check (true);
+
+drop policy if exists "Allow all on secretary_tasks" on secretary_tasks;
+create policy "Allow all on secretary_tasks" on secretary_tasks for all using (true) with check (true);
+
+drop policy if exists "Allow all on secretary_events" on secretary_events;
+create policy "Allow all on secretary_events" on secretary_events for all using (true) with check (true);
+
+drop policy if exists "Allow all on secretary_preferences" on secretary_preferences;
+create policy "Allow all on secretary_preferences" on secretary_preferences for all using (true) with check (true);
 
 create or replace view crm_daily_brief as
 select
@@ -420,3 +541,63 @@ select
   (select count(*) from prospects where stage = 'reunion') as reuniones_en_pipeline,
   (select count(*) from prospects where stage = 'propuesta') as propuestas_en_pipeline,
   (select count(*) from follow_ups where status = 'pendiente' and due_at between now() and now() + interval '14 days') as followups_proximos_14d;
+
+create or replace view crm_commercial_forecast as
+with month_goals as (
+  select coalesce(sum(target_value), 0) as target_clients, coalesce(sum(current_value), 0) as current_clients
+  from monthly_goals
+  where status = 'activo'
+    and unit in ('clientes', 'cliente', 'cierres', 'cierre')
+    and date_trunc('month', month) = date_trunc('month', current_date)
+),
+pipeline as (
+  select
+    coalesce(sum(case stage when 'contactado' then 0.15 when 'reunion' then 0.35 when 'propuesta' then 0.6 when 'cliente' then 1 else 0.05 end), 0) as weighted_pipeline,
+    count(*) filter (where stage = 'reunion') as meetings,
+    count(*) filter (where stage = 'propuesta') as proposals
+  from prospects
+)
+select
+  target_clients,
+  current_clients,
+  weighted_pipeline,
+  meetings,
+  proposals,
+  current_clients + floor(weighted_pipeline)::int as projected_clients,
+  case
+    when target_clients = 0 then 'amarillo'
+    when current_clients + floor(weighted_pipeline)::int >= target_clients then 'verde'
+    when meetings + proposals >= greatest(1, target_clients - current_clients) then 'amarillo'
+    else 'rojo'
+  end as forecast_status
+from month_goals, pipeline;
+
+create or replace view crm_campaign_dashboard as
+select
+  sc.*,
+  greatest(0, sc.target_count - sc.completed_count) as remaining_count,
+  case
+    when sc.target_count = 0 then 0
+    else round((sc.completed_count::numeric / sc.target_count::numeric) * 100)
+  end as progress_percent,
+  coalesce(sum(wal.quantity), 0) as logged_actions
+from sales_campaigns sc
+left join work_activity_log wal on wal.metadata->>'campaign_id' = sc.id::text
+group by sc.id;
+
+create or replace view crm_secretary_open_task as
+select *
+from secretary_tasks
+where status in ('pendiente', 'en_progreso')
+order by created_at desc
+limit 1;
+
+create or replace view crm_secretary_today as
+select
+  current_date as task_date,
+  count(*) filter (where status = 'hecha') as completed_tasks,
+  count(*) filter (where status in ('pendiente', 'en_progreso')) as open_tasks,
+  count(*) filter (where status = 'postergada') as postponed_tasks,
+  coalesce(max(step_number), 0) as current_step
+from secretary_tasks
+where task_date = current_date;

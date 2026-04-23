@@ -10,6 +10,7 @@ import FollowUpsPanel from '@/app/components/FollowUpsPanel'
 import RemindersPanel from '@/app/components/RemindersPanel'
 import InboxPanel from '@/app/components/InboxPanel'
 import GoalsPanel from '@/app/components/GoalsPanel'
+import CommercialPanel from '@/app/components/CommercialPanel'
 import {
   Prospect,
   Stage,
@@ -27,6 +28,10 @@ import {
   MonthlyGoal,
   WorkActivityLog,
   WorkActivityType,
+  SalesCampaign,
+  CommercialPlaybook,
+  MessageTemplate,
+  CommercialEngine,
 } from '@/app/lib/types'
 
 export default function Home() {
@@ -41,6 +46,10 @@ export default function Home() {
   const [dailyScore, setDailyScore] = useState<DailyWorkScore | null>(null)
   const [dailyScores, setDailyScores] = useState<DailyWorkScore[]>([])
   const [dailyCloseouts, setDailyCloseouts] = useState<DailyCloseout[]>([])
+  const [campaigns, setCampaigns] = useState<SalesCampaign[]>([])
+  const [playbooks, setPlaybooks] = useState<CommercialPlaybook[]>([])
+  const [templates, setTemplates] = useState<MessageTemplate[]>([])
+  const [commercialEngine, setCommercialEngine] = useState<CommercialEngine | null>(null)
   const [nowTimestamp, setNowTimestamp] = useState(() => Date.now())
   const [loading, setLoading] = useState(true)
   const [showNewForm, setShowNewForm] = useState(false)
@@ -65,6 +74,10 @@ export default function Home() {
         dailyScoreRes,
         dailyScoresRes,
         dailyCloseoutsRes,
+        campaignsRes,
+        playbooksRes,
+        templatesRes,
+        commercialEngineRes,
       ] = await Promise.all([
         fetch('/api/prospects'),
         fetch('/api/followups'),
@@ -77,6 +90,10 @@ export default function Home() {
         fetch('/api/daily-score'),
         fetch('/api/daily-scores'),
         fetch('/api/daily-closeouts'),
+        fetch('/api/campaigns'),
+        fetch('/api/playbooks'),
+        fetch('/api/templates'),
+        fetch('/api/commercial-engine'),
       ])
 
       const [
@@ -91,6 +108,10 @@ export default function Home() {
         dailyScoreData,
         dailyScoresData,
         dailyCloseoutsData,
+        campaignsData,
+        playbooksData,
+        templatesData,
+        commercialEngineData,
       ] = await Promise.all([
         prospectsRes.json(),
         followUpsRes.json(),
@@ -103,6 +124,10 @@ export default function Home() {
         dailyScoreRes.json(),
         dailyScoresRes.json(),
         dailyCloseoutsRes.json(),
+        campaignsRes.json(),
+        playbooksRes.json(),
+        templatesRes.json(),
+        commercialEngineRes.json(),
       ])
 
       setProspects(Array.isArray(prospectsData) ? prospectsData : [])
@@ -116,6 +141,10 @@ export default function Home() {
       setDailyScore(dailyScoreData && !dailyScoreData.error ? dailyScoreData : null)
       setDailyScores(Array.isArray(dailyScoresData) ? dailyScoresData : [])
       setDailyCloseouts(Array.isArray(dailyCloseoutsData) ? dailyCloseoutsData : [])
+      setCampaigns(Array.isArray(campaignsData) ? campaignsData : [])
+      setPlaybooks(Array.isArray(playbooksData) ? playbooksData : [])
+      setTemplates(Array.isArray(templatesData) ? templatesData : [])
+      setCommercialEngine(commercialEngineData && !commercialEngineData.error ? commercialEngineData : null)
       refreshBoard()
     } catch {
       setProspects([])
@@ -129,6 +158,10 @@ export default function Home() {
       setDailyScore(null)
       setDailyScores([])
       setDailyCloseouts([])
+      setCampaigns([])
+      setPlaybooks([])
+      setTemplates([])
+      setCommercialEngine(null)
     } finally {
       setLoading(false)
     }
@@ -290,6 +323,41 @@ export default function Home() {
     await fetchAll()
   }
 
+  const handleCreateCampaign = async (payload: {
+    name: string
+    objective: string
+    business_area: string
+    target_channel: string
+    target_count: number
+    daily_target: number
+    goal_id: string
+    notes: string
+  }) => {
+    await fetch('/api/campaigns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    await fetchAll()
+  }
+
+  const handleCreatePlaybook = async (payload: {
+    name: string
+    segment: string
+    channel: string
+    opening_message: string
+    follow_up_message: string
+    proposal_angle: string
+    qualification_questions: string[]
+  }) => {
+    await fetch('/api/playbooks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    await fetchAll()
+  }
+
   const openProspect = (prospectId: string) => {
     setSelectedProspectId(prospectId)
   }
@@ -348,6 +416,20 @@ export default function Home() {
                   onToggleTask={handleToggleGoalTask}
                   onLogActivity={handleLogWorkActivity}
                   onGeneratePlan={handleGenerateDailyPlan}
+                />
+              </div>
+            )}
+
+            {activeTab === 'comercial' && (
+              <div className="h-full overflow-y-auto">
+                <CommercialPanel
+                  engine={commercialEngine}
+                  campaigns={campaigns}
+                  playbooks={playbooks}
+                  templates={templates}
+                  goals={goals}
+                  onCreateCampaign={handleCreateCampaign}
+                  onCreatePlaybook={handleCreatePlaybook}
                 />
               </div>
             )}

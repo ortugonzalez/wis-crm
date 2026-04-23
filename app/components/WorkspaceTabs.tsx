@@ -1,6 +1,6 @@
 'use client'
 
-export type WorkspaceTab = 'pipeline' | 'objetivos' | 'seguimiento' | 'recordatorios' | 'inbox'
+export type WorkspaceTab = 'pipeline' | 'objetivos' | 'comercial' | 'seguimiento' | 'recordatorios' | 'inbox'
 
 interface Props {
   activeTab: WorkspaceTab
@@ -10,6 +10,7 @@ interface Props {
 const tabs: { id: WorkspaceTab; label: string; description: string }[] = [
   { id: 'pipeline', label: 'Pipeline', description: 'Kanban comercial' },
   { id: 'objetivos', label: 'Objetivos', description: 'Metas, tareas y score diario' },
+  { id: 'comercial', label: 'Comercial', description: 'Campanas, forecast y playbooks' },
   { id: 'seguimiento', label: 'Seguimiento', description: 'Follow-ups y proximas acciones' },
   { id: 'recordatorios', label: 'Recordatorios', description: 'Alertas y agenda' },
   { id: 'inbox', label: 'Inbox', description: 'Mensajes que llegan desde Telegram' },
