@@ -1,6 +1,6 @@
 'use client'
 
-export type WorkspaceTab = 'pipeline' | 'objetivos' | 'comercial' | 'seguimiento' | 'recordatorios' | 'inbox'
+export type WorkspaceTab = 'pipeline' | 'objetivos' | 'comercial' | 'seguimiento' | 'recordatorios' | 'inbox' | 'tareas'
 
 interface Props {
   activeTab: WorkspaceTab
@@ -14,6 +14,7 @@ const tabs: { id: WorkspaceTab; label: string; description: string }[] = [
   { id: 'seguimiento', label: 'Seguimiento', description: 'Follow-ups y proximas acciones' },
   { id: 'recordatorios', label: 'Recordatorios', description: 'Alertas y agenda' },
   { id: 'inbox', label: 'Inbox', description: 'Mensajes que llegan desde Telegram' },
+  { id: 'tareas', label: 'Tareas', description: 'Pendientes del agente automatizado' },
 ]
 
 export default function WorkspaceTabs({ activeTab, onChange }: Props) {

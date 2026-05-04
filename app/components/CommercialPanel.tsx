@@ -144,6 +144,24 @@ export default function CommercialPanel({
         </section>
 
         <section className="rounded-2xl border border-[#1a1a1a] bg-[#111] p-5">
+          <h2 className="text-base font-semibold text-[#f0f0f0]">Ritmo y enfoque</h2>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border border-[#222] bg-[#0d0d0d] p-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#10b981]">Mision semanal</div>
+              <div className="mt-2 text-sm leading-6 text-[#c8c8c8]">{engine?.mission ?? 'Todavía no hay misión calculada.'}</div>
+            </div>
+            <div className="rounded-2xl border border-[#222] bg-[#0d0d0d] p-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7c3aed]">Checklist ejecutivo</div>
+              <div className="mt-2 space-y-2">
+                {(engine?.weeklyFocus ?? []).map((item) => (
+                  <div key={item} className="rounded-xl bg-[#121212] px-3 py-2 text-sm text-[#c8c8c8]">{item}</div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-[#1a1a1a] bg-[#111] p-5">
           <h2 className="text-base font-semibold text-[#f0f0f0]">Campanas activas</h2>
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             {campaigns.length === 0 && <Empty text="Todavia no hay campanas. Crea una para ordenar la prospeccion." />}

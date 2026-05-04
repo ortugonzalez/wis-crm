@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/app/lib/server-supabase'
-import { Prospect, MonthlyGoal, WorkActivityLog, SalesCampaign } from '@/app/lib/types'
+import { Prospect, MonthlyGoal, SecretaryPreferences, WorkActivityLog, SalesCampaign } from '@/app/lib/types'
 
 function currentMonthStart() {
   const now = new Date()
@@ -37,14 +37,15 @@ export async function GET() {
   const supabase = getServerSupabase()
   const month = currentMonthStart()
 
-  const [prospectsRes, goalsRes, activitiesRes, campaignsRes] = await Promise.all([
+  const [prospectsRes, goalsRes, activitiesRes, campaignsRes, preferencesRes] = await Promise.all([
     supabase.from('prospects').select('*').order('updated_at', { ascending: true }).limit(300),
     supabase.from('monthly_goals').select('*').eq('status', 'activo').eq('month', month).limit(50),
     supabase.from('work_activity_log').select('*').gte('activity_date', month).limit(500),
     supabase.from('sales_campaigns').select('*').eq('status', 'activa').limit(50),
+    supabase.from('secretary_preferences').select('*').eq('singleton_key', 'ortu').maybeSingle(),
   ])
 
-  if (prospectsRes.error || goalsRes.error || activitiesRes.error || campaignsRes.error) {
+  if (prospectsRes.error || goalsRes.error || activitiesRes.error || campaignsRes.error || preferencesRes.error) {
     return NextResponse.json({ error: 'No pude calcular el motor comercial.' }, { status: 500 })
   }
 
@@ -52,6 +53,7 @@ export async function GET() {
   const goals = (goalsRes.data ?? []) as MonthlyGoal[]
   const activities = (activitiesRes.data ?? []) as WorkActivityLog[]
   const campaigns = (campaignsRes.data ?? []) as SalesCampaign[]
+  const preferences = (preferencesRes.data ?? null) as SecretaryPreferences | null
   const pipeline = countByStage(prospects)
   const targetClients = goals
     .filter((goal) => ['cliente', 'clientes', 'cierre', 'cierres'].includes(goal.unit.toLowerCase()))
@@ -93,16 +95,33 @@ export async function GET() {
     })
     .slice(0, 5)
 
+  const upcomingBirthdays = prospects
+    .filter((prospect) => prospect.birthday)
+    .map((prospect) => {
+      const birthday = new Date(prospect.birthday as string)
+      const nextBirthday = new Date(new Date().getFullYear(), birthday.getMonth(), birthday.getDate()).getTime()
+      return { prospect, nextBirthday }
+    })
+    .filter((item) => item.nextBirthday >= Date.now() && item.nextBirthday <= Date.now() + 10 * 24 * 60 * 60 * 1000)
+    .sort((a, b) => a.nextBirthday - b.nextBirthday)
+    .slice(0, 3)
+
+  const contactTarget = preferences?.daily_contact_target ?? 10
+  const followupTarget = preferences?.daily_followup_target ?? 3
+  const proposalTarget = preferences?.daily_proposal_target ?? 1
+  const gentleMode = preferences?.energy_mode === 'suave' || preferences?.current_state === 'saturado'
+  const segmentText = preferences?.preferred_segments?.length ? preferences.preferred_segments.join(', ') : 'segmento principal'
+
   const todayActions = [
     campaigns[0]
       ? `Mover campana ${campaigns[0].name}: hacer ${campaigns[0].daily_target} acciones de ${campaigns[0].business_area}.`
-      : 'Crear una campana comercial activa para ordenar el esfuerzo de prospeccion.',
+      : `Crear una campana comercial activa para ordenar el esfuerzo sobre ${segmentText}.`,
     pipeline.proposals > 0
       ? `Hacer follow-up a ${pipeline.proposals} propuesta(s) abierta(s).`
-      : 'Generar al menos una propuesta nueva desde reuniones o conversaciones activas.',
+      : `Generar al menos ${proposalTarget} propuesta${proposalTarget === 1 ? '' : 's'} nueva${proposalTarget === 1 ? '' : 's'} desde reuniones o conversaciones activas.`,
     staleProspects[0]
       ? `Reactivar a ${staleProspects[0].name}${staleProspects[0].company ? ` de ${staleProspects[0].company}` : ''}.`
-      : 'Sumar 10 contactos nuevos y registrar de donde salieron.',
+      : `Sumar ${contactTarget} contacto${contactTarget === 1 ? '' : 's'} nuevo${contactTarget === 1 ? '' : 's'} y registrar de donde salieron.`,
   ]
 
   const risks = [
@@ -110,6 +129,7 @@ export async function GET() {
     recentContacts < 20 ? `Volumen bajo este mes: ${recentContacts} contactos registrados.` : '',
     followUps < 5 ? `Pocos follow-ups registrados este mes: ${followUps}.` : '',
     pipeline.meetings + pipeline.proposals === 0 ? 'No hay reuniones ni propuestas en pipeline.' : '',
+    gentleMode ? 'El secretario está en modo de carga baja: conviene reducir ambición y priorizar una sola acción importante.' : '',
   ].filter(Boolean)
 
   const opportunities = [
@@ -117,6 +137,7 @@ export async function GET() {
     pipeline.proposals > 0 ? `${pipeline.proposals} propuesta(s) pueden convertirse en cierre si tienen proximo paso.` : '',
     staleProspects.length > 0 ? `${staleProspects.length} contacto(s) dormido(s) para reactivar.` : '',
     campaigns.length > 0 ? `${campaigns.length} campana(s) activa(s) para sostener volumen.` : '',
+    upcomingBirthdays[0] ? `${upcomingBirthdays.length} cumpleaño(s) o fechas relacionales para aprovechar.` : '',
   ].filter(Boolean)
 
   const suggestedMessages = [
@@ -132,10 +153,18 @@ export async function GET() {
       title: 'Primer contacto B2B',
       body: 'Estoy contactando empresas del sector porque estamos ayudando a ordenar oportunidades comerciales. Tiene sentido que te cuente en 2 minutos?',
     },
+    {
+      title: 'Micro-mision del dia',
+      body: gentleMode
+        ? `Solo una cosa: completa ${followupTarget} follow-up${followupTarget === 1 ? '' : 's'} concretos y cerrá el bloque.`
+        : `Bloque de ejecución: ${contactTarget} contactos, ${followupTarget} follow-up${followupTarget === 1 ? '' : 's'} y ${proposalTarget} propuesta${proposalTarget === 1 ? '' : 's'}.`,
+    },
   ]
 
   return NextResponse.json({
-    mission,
+    mission: preferences?.monthly_intent
+      ? `${mission} Intención del mes: ${preferences.monthly_intent}.`
+      : mission,
     forecast: {
       targetClients,
       currentClients,
@@ -154,9 +183,9 @@ export async function GET() {
     pipeline,
     suggestedMessages,
     weeklyFocus: [
-      'Aumentar volumen arriba del embudo.',
+      preferences?.current_focus ? `Prioridad declarada: ${preferences.current_focus}.` : 'Aumentar volumen arriba del embudo.',
+      `Sostener ${followupTarget} follow-up${followupTarget === 1 ? '' : 's'} diarios con proximo paso claro.`,
       'Convertir conversaciones en reuniones.',
-      'Cerrar siguiente paso en cada propuesta.',
       'Registrar cierre diario para medir score real.',
     ],
   })

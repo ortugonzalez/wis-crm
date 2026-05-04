@@ -273,6 +273,9 @@ export interface CommercialEngine {
 
 export type SecretaryTaskStatus = 'pendiente' | 'en_progreso' | 'hecha' | 'postergada' | 'cancelada'
 export type SecretaryMode = 'liviano' | 'normal' | 'sprint' | 'pausa'
+export type SecretaryEnergyMode = 'suave' | 'equilibrado' | 'intenso'
+export type SecretaryCurrentState = 'arrancando' | 'en_foco' | 'saturado' | 'trabado' | 'cerrando'
+export type SecretaryCoachingStyle = 'concreto' | 'amable' | 'exigente'
 
 export interface SecretaryTask {
   id: string
@@ -312,8 +315,59 @@ export interface SecretaryPreferences {
   reminder_minutes: number
   max_attempts: number
   max_open_tasks: number
+  display_name: string
+  role_title: string
+  monthly_intent: string | null
+  current_focus: string | null
+  preferred_segments: string[]
+  priority_channels: Channel[]
+  energy_mode: SecretaryEnergyMode
+  current_state: SecretaryCurrentState
+  coaching_style: SecretaryCoachingStyle
+  relationship_goal: string | null
+  context_notes: string | null
+  daily_contact_target: number
+  daily_followup_target: number
+  daily_proposal_target: number
+  one_thing_rule: boolean
   created_at: string
   updated_at: string
+}
+
+export interface SecretaryOverview {
+  preferences: SecretaryPreferences | null
+  activeTask: SecretaryTask | null
+  completionRate7d: number | null
+  completed7d: number
+  total7d: number
+  openTasks: number
+  completedToday: number
+  dailyTargetProgress: {
+    contacts: { done: number; target: number }
+    followUps: { done: number; target: number }
+    proposals: { done: number; target: number }
+  }
+  missingFoundations: string[]
+  coachingNote: string
+  nextSuggestedStep: string
+  birthdays: {
+    prospect_id: string
+    name: string
+    company: string | null
+    birthday: string
+  }[]
+  staleProspects: {
+    prospect_id: string
+    name: string
+    company: string | null
+    stage: Stage
+    days_without_contact: number
+  }[]
+  campaignPulse: {
+    activeCount: number
+    headline: string
+  }
+  recentEvents: SecretaryEvent[]
 }
 
 export const STAGES: { id: Stage; label: string; color: string; bg: string }[] = [

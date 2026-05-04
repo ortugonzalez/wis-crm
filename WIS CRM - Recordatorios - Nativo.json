@@ -1,0 +1,5191 @@
+{
+  "name": "WIS CRM - Recordatorios - Nativo",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wis-crm-agent-incoming",
+        "options": {}
+      },
+      "id": "3c139819-0bb3-40f3-87c7-6e8f03aa9dff",
+      "name": "Telegram Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        24112,
+        12688
+      ],
+      "webhookId": "wis-crm-agent-incoming"
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $json.body ?? $json;\nconst msg = payload.message ?? payload.edited_message ?? payload.channel_post;\n\nif (!msg) return [];\n\nconst voice = msg.voice ?? null;\nconst audio = msg.audio ?? null;\nconst documentAudio = msg.document?.mime_type?.startsWith('audio/') ? msg.document : null;\nconst text = msg.text ?? msg.caption ?? '';\n\nreturn [\n  {\n    json: {\n      update_id: payload.update_id ?? null,\n      chat_id: String(msg.chat?.id ?? ''),\n      message_id: String(msg.message_id ?? ''),\n      from_id: String(msg.from?.id ?? ''),\n      from_name: [msg.from?.first_name, msg.from?.last_name].filter(Boolean).join(' ').trim(),\n      username: msg.from?.username ?? null,\n      has_audio: Boolean(voice || audio || documentAudio),\n      file_id: voice?.file_id ?? audio?.file_id ?? documentAudio?.file_id ?? null,\n      mime_type: voice?.mime_type ?? audio?.mime_type ?? documentAudio?.mime_type ?? null,\n      mensaje_original: text,\n      source: voice ? 'voice' : audio ? 'audio' : documentAudio ? 'audio_document' : 'text',\n      sent_at: msg.date ? new Date(msg.date * 1000).toISOString() : new Date().toISOString(),\n    },\n  },\n];"
+      },
+      "id": "fe1a6a7d-12db-4fc6-b2fc-65a58f263587",
+      "name": "Normalizar Incoming",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        24352,
+        12688
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3e51c335-30e5-4ece-ba02-06a995d50633",
+              "leftValue": "={{ String($json.chat_id) }}",
+              "rightValue": "7512675688",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b0d85f4d-cf60-45c0-96a0-d4d2ac57b5c9",
+      "name": "Validar Chat ID",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        24592,
+        12688
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fdeacc20-a092-44ca-ad39-d6b9409fa112",
+              "leftValue": "={{ $json.has_audio }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5e281f38-c0de-41e0-8c94-a0fd8a4af2f2",
+      "name": "Tiene Audio",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        24832,
+        12688
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c53b372c-7f59-48bf-b6a2-7a975102e895",
+              "name": "mensaje",
+              "value": "={{ $json.mensaje_original }}",
+              "type": "string"
+            },
+            {
+              "id": "f1297b63-073c-4ee9-b557-25f8478e50ad",
+              "name": "input_source",
+              "value": "text",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4dde4da9-d872-48d8-995c-d34180c3c8ee",
+      "name": "Texto Listo",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        25072,
+        12832
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.file_id }}",
+        "download": false
+      },
+      "id": "d58fcd9f-ec37-473c-9de4-2dd6a61e9449",
+      "name": "Telegram Get File",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        25072,
+        12544
+      ],
+      "webhookId": "69fcc39d-da81-418a-9778-ce8823f7d1db",
+      "credentials": {
+        "telegramApi": {
+          "id": "KwPKAA20aHtjCLeE",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const incoming = $('Normalizar Incoming').first().json;\nconst filePath = $json.file_path ?? $json.result?.file_path ?? null;\n\nif (!filePath) {\n  throw new Error('Telegram no devolvio file_path');\n}\n\nreturn [\n  {\n    json: {\n      ...incoming,\n      telegram_file_path: filePath,\n      telegram_file_url: `https://api.telegram.org/file/bot${$env.TELEGRAM_BOT_TOKEN}/${filePath}`,\n      audio_file_name: filePath.split('/').pop() ?? 'audio.ogg',\n      audio_mime_type: incoming.mime_type ?? 'audio/ogg',\n    },\n  },\n];"
+      },
+      "id": "3547c686-47b9-422c-b747-b5f2a68ab98b",
+      "name": "Construir URL Audio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        25312,
+        12544
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AUDIO_GATEWAY_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-transcribe-secret",
+              "value": "={{ $env.AUDIO_GATEWAY_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { fileUrl: $json.telegram_file_url, fileName: $json.audio_file_name, mimeType: $json.audio_mime_type, language: \"es\" } }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "ad9632fd-78e9-4cac-aa9f-da57b8a4226d",
+      "name": "Transcribir Audio Gateway",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        25552,
+        12544
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fe6af3a7-6b54-430e-abd1-c6c721e4a987",
+              "name": "mensaje",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "8e25132e-39f6-4f9a-bb4a-a53ac7f025a9",
+              "name": "input_source",
+              "value": "audio",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9cda9034-6333-4e53-a0a6-526567c385b8",
+      "name": "Audio Listo",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        25792,
+        12544
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "bd419aed-1278-4604-aff5-30c195d04ddf",
+      "name": "Mensaje Unificado",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        26032,
+        12688
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "raw_messages",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "source",
+              "fieldValue": "telegram"
+            },
+            {
+              "fieldId": "direction",
+              "fieldValue": "inbound"
+            },
+            {
+              "fieldId": "kind",
+              "fieldValue": "={{ $json.input_source === \"audio\" ? \"audio\" : \"text\" }}"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $json.mensaje }}"
+            },
+            {
+              "fieldId": "telegram_message_id",
+              "fieldValue": "={{ $json.message_id }}"
+            },
+            {
+              "fieldId": "metadata",
+              "fieldValue": "={{ { chat_id: $json.chat_id, from_id: $json.from_id, from_name: $json.from_name, username: $json.username, sent_at: $json.sent_at, source: $json.source } }}"
+            }
+          ]
+        }
+      },
+      "id": "ecc0abd8-5bd3-4ecb-ad1b-b495b6ade3d7",
+      "name": "Guardar Entrada",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        26272,
+        12688
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "prospects",
+        "returnAll": true
+      },
+      "id": "ead5b153-fbae-4e8e-b5dd-89f5071984fb",
+      "name": "Traer Prospects",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        26512,
+        12688
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const incoming = $('Mensaje Unificado').first().json;\nconst prospects = items.map(item => item.json).slice(0, 80);\n\nconst schema = {\n  reply_text: 'string',\n  action_type: 'no_action | create_prospect | update_prospect_stage | add_note | create_follow_up | create_reminder | create_monthly_goal | create_goal_task | log_work_activity | complete_secretary_task | postpone_secretary_task | set_secretary_mode',\n  prospect_id: 'uuid|null',\n  payload: {}\n};\n\nconst chatInput = [\n  'MENSAJE DEL USUARIO:',\n  incoming.mensaje,\n  '',\n  'CONTEXTO CRM:',\n  JSON.stringify(prospects, null, 2),\n  '',\n  'FORMATO OBLIGATORIO DE RESPUESTA:',\n  JSON.stringify(schema, null, 2),\n  '',\n  'ACCIONES NUEVAS:',\n  '- create_monthly_goal: cuando el usuario pida cargar objetivo mensual. payload: {title, target_value, unit, description}',\n  '- create_goal_task: cuando el usuario pida cargar tarea/palanca diaria o mensual. payload: {goal_id?, title, category, target_count}',\n  '- log_work_activity: cuando el usuario reporte actividad hecha. payload: {type, quantity, title, notes?, prospect_id?, goal_id?}',\n  '- complete_secretary_task: cuando responda hecho/listo/cumplido a la mision actual.',\n  '- postpone_secretary_task: cuando diga despues/no pude/mas tarde/paso.',\n  '- set_secretary_mode: cuando pida modo liviano, normal, sprint o pausa. payload: {mode}',\n  '- show_pipeline: cuando el usuario escribe /pipeline o pide ver el pipeline/estado de prospectos. payload: {}',\n  '- log_loss_reason: cuando el usuario da la causa de perdida de un prospect. payload: {prospect_id, reason}',\n  '',\n  'REGLAS:',\n  '- Responde SOLO JSON valido.',\n  '- Si dice \"cargame el objetivo mensual de generar 5 clientes nuevos\", usa create_monthly_goal.',\n  '- Si no sabes goal_id para una tarea, crea igual la tarea sin goal_id y pedi vincularla despues.',\n  '- No digas que no podes crear objetivos: ahora si podes.',\n  '- Si el usuario solo conversa o saluda, usa no_action.',\n  '- Si el usuario escribe /pipeline o pide ver el pipeline, usa show_pipeline.',\n  '- Si el usuario da la causa de perdida de un prospect, usa log_loss_reason con prospect_id y reason.',\n  '- No inventes IDs.',\n  '- Si el usuario pide ideas/angulos para hablarle a un prospect, genera 3 angulos concretos en reply_text. action_type: no_action.',\n].join('\\n');\n\nreturn [\n  {\n    json: {\n      ...incoming,\n      prospects_context: prospects,\n      chatInput,\n      sessionId: String(incoming.chat_id),\n    },\n  },\n];"
+      },
+      "id": "513bda0d-18b4-4500-8bc7-f1928953e98e",
+      "name": "Preparar Prompt AI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        26752,
+        12688
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.sessionId }}",
+        "tableName": "n8n_chat_histories",
+        "contextWindowLength": 10
+      },
+      "id": "f2386ab0-bc2a-4f05-9b94-41cb1c5fc8a0",
+      "name": "Simple Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgres",
+      "typeVersion": 1.1,
+      "position": [
+        27168,
+        12896
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const incoming = $('Preparar Prompt AI').first().json;\nconst raw = $json.output ?? $json.text ?? $json.response ?? '{}';\n\nlet parsed;\ntry {\n  parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;\n} catch (error) {\n  parsed = {\n    reply_text: 'No termine de entenderlo. Decime de nuevo que queres hacer y lo resuelvo.',\n    action_type: 'no_action',\n    prospect_id: null,\n    payload: {},\n  };\n}\n\nif (!parsed || typeof parsed !== 'object') {\n  parsed = {\n    reply_text: 'No termine de entenderlo. Decime de nuevo que queres hacer y lo resuelvo.',\n    action_type: 'no_action',\n    prospect_id: null,\n    payload: {},\n  };\n}\n\nreturn [\n  {\n    json: {\n      ...incoming,\n      decision: {\n        reply_text: parsed.reply_text ?? 'Listo.',\n        action_type: parsed.action_type ?? 'no_action',\n        prospect_id: parsed.prospect_id ?? null,\n        payload: parsed.payload ?? {},\n      },\n    },\n  },\n];"
+      },
+      "id": "a1637ce9-dee2-41a7-856f-95a2f5c5c79e",
+      "name": "Parsear Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27264,
+        12688
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "5fac6108-972b-484e-9cf4-bca604f03925",
+              "leftValue": "={{ $json.decision.action_type }}",
+              "rightValue": "create_prospect",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2cf34cea-e301-4287-a10a-ae26d3357e56",
+      "name": "Es Crear Prospect?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        27504,
+        12688
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "prospects",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "name",
+              "fieldValue": "={{ $json.decision.payload.name || $json.decision.payload.contact || $json.decision.payload.company || \"Prospect sin nombre\" }}"
+            },
+            {
+              "fieldId": "company",
+              "fieldValue": "={{ $json.decision.payload.company || \"\" }}"
+            },
+            {
+              "fieldId": "email",
+              "fieldValue": "={{ $json.decision.payload.email || \"\" }}"
+            },
+            {
+              "fieldId": "phone",
+              "fieldValue": "={{ $json.decision.payload.phone || \"\" }}"
+            },
+            {
+              "fieldId": "channel",
+              "fieldValue": "={{ (() => { const raw = String($json.decision.payload.channel || \"telegram\").toLowerCase().trim(); const map = { instagram: \"otro\", facebook: \"otro\", web: \"otro\", llamada: \"otro\", telefono: \"otro\", emprending: \"otro\", emprendimiento: \"otro\" }; const value = map[raw] || raw; return [\"whatsapp\",\"linkedin\",\"email\",\"referido\",\"telegram\",\"otro\"].includes(value) ? value : \"otro\"; })() }}"
+            },
+            {
+              "fieldId": "stage",
+              "fieldValue": "={{ (() => { const raw = String($json.decision.payload.stage || \"frio\").toLowerCase().trim(); const map = { nuevo: \"frio\", lead: \"frio\", prospect: \"frio\", interesado: \"contactado\", hablado: \"contactado\", llamada: \"contactado\", meeting: \"reunion\", reunion_agendada: \"reunion\", presupuesto: \"propuesta\", cotizacion: \"propuesta\", cerrado: \"cliente\" }; const value = map[raw] || raw; return [\"frio\",\"contactado\",\"reunion\",\"propuesta\",\"cliente\"].includes(value) ? value : \"frio\"; })() }}"
+            },
+            {
+              "fieldId": "source",
+              "fieldValue": "telegram"
+            },
+            {
+              "fieldId": "notes",
+              "fieldValue": "={{ $json.decision.payload.notes ?? $json.mensaje }}"
+            },
+            {
+              "fieldId": "estimated_value",
+              "fieldValue": "={{ (() => { const raw = $json.decision.payload.estimated_value; if (raw === undefined || raw === null) return undefined; const text = String(raw).trim().toLowerCase(); if (!text || text === \"null\" || text === \"undefined\" || text === \"=\") return undefined; const number = Number(text.replace(/[^0-9.,-]/g, \"\").replace(/,/g, \".\")); return Number.isFinite(number) ? number : undefined; })() }}"
+            },
+            {
+              "fieldId": "birthday",
+              "fieldValue": "={{ (() => { const raw = $json.decision.payload.birthday; if (raw === undefined || raw === null) return undefined; const text = String(raw).trim(); if (!text || [\"null\",\"undefined\",\"=\"].includes(text.toLowerCase())) return undefined; return /^\\d{4}-\\d{2}-\\d{2}$/.test(text) ? text : undefined; })() }}"
+            },
+            {
+              "fieldId": "last_contact_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            },
+            {
+              "fieldId": "next_action_at",
+              "fieldValue": "={{ (() => { const raw = $json.decision.payload.next_action_at; if (raw === undefined || raw === null) return undefined; const text = String(raw).trim(); if (!text || [\"null\",\"undefined\",\"=\"].includes(text.toLowerCase())) return undefined; const date = new Date(text); return Number.isNaN(date.getTime()) ? undefined : date.toISOString(); })() }}"
+            }
+          ]
+        }
+      },
+      "id": "8287dcdf-e1d2-4c65-b083-18ca940f2131",
+      "name": "Crear Prospect",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        27744,
+        12480
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c5fa557d-cf46-4669-abfb-6c552dc16ff1",
+              "leftValue": "={{ $json.decision.action_type }}",
+              "rightValue": "update_prospect_stage",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7f795d53-7462-4ae8-b40a-a5c7eace278c",
+      "name": "Es Actualizar Etapa?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        27744,
+        12688
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "prospects",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.decision.prospect_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "stage",
+              "fieldValue": "={{ $json.decision.payload.stage }}"
+            },
+            {
+              "fieldId": "next_action_at",
+              "fieldValue": "={{ $json.decision.payload.next_action_at ? $json.decision.payload.next_action_at : undefined }}"
+            },
+            {
+              "fieldId": "last_contact_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "id": "d2a42cde-ffd9-41c3-ae63-db9fe202fd43",
+      "name": "Actualizar Etapa Prospect",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        27984,
+        12480
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c422be29-e654-4113-86d7-0825b7ed6946",
+              "leftValue": "={{ $json.decision.action_type }}",
+              "rightValue": "add_note",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d9a60479-9d95-4cd4-8888-bdc6673115c8",
+      "name": "Es Agregar Nota?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        27984,
+        12688
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "activities",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "prospect_id",
+              "fieldValue": "={{ $json.decision.prospect_id }}"
+            },
+            {
+              "fieldId": "type",
+              "fieldValue": "nota"
+            },
+            {
+              "fieldId": "description",
+              "fieldValue": "={{ $json.decision.payload.note ?? $json.decision.payload.notes ?? $json.mensaje }}"
+            },
+            {
+              "fieldId": "metadata",
+              "fieldValue": "={{ { source: \"telegram\", input_source: $json.input_source } }}"
+            }
+          ]
+        }
+      },
+      "id": "6ac15849-b124-4491-b8a0-4bd61c0dce57",
+      "name": "Crear Activity Nota",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        28208,
+        12688
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "IkJ2vuKDnHxShPq7",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4c4240a4-dbb4-42ce-95b5-3b9d0128b6a5",
+              "leftValue": "={{ $json.decision.action_type }}",
+              "rightValue": "create_follow_up",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5e81f0b3-096c-497e-a4cd-2c8771a31d63",
+      "name": "Es Crear Follow Up?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        28176,
+        13136
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "follow_ups",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "prospect_id",
+              "fieldValue": "={{ $json.decision.prospect_id ?? $json.decision.payload.prospect_id }}"
+            },
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $json.decision.payload.title ?? \"Seguimiento\" }}"
+            },
+            {
+              "fieldId": "notes",
+              "fieldValue": "={{ $json.decision.payload.notes ?? $json.mensaje }}"
+            },
+            {
+              "fieldId": "due_at",
+              "fieldValue": "={{ $json.decision.payload.due_at ?? new Date(Date.now() + 24*60*60*1000).toISOString() }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "pendiente"
+            },
+            {
+              "fieldId": "priority",
+              "fieldValue": "={{ $json.decision.payload.priority ?? \"media\" }}"
+            },
+            {
+              "fieldId": "source",
+              "fieldValue": "telegram"
+            }
+          ]
+        }
+      },
+      "id": "13e82327-5bb9-4b3e-9cd7-bb16efb8c34c",
+      "name": "Crear Follow Up",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        28672,
+        13008
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "41bf2de0-78bd-4f23-bc1b-04fa0e8a02ca",
+              "leftValue": "={{ $json.decision.action_type }}",
+              "rightValue": "create_reminder",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cddaf166-c2c2-4d12-a1cc-6a8e0e70ea88",
+      "name": "Es Crear Reminder?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        28608,
+        13248
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "reminders",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "prospect_id",
+              "fieldValue": "={{ $json.decision.prospect_id || $json.decision.payload.prospect_id || undefined }}"
+            },
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $json.decision.payload.title ?? \"Recordatorio\" }}"
+            },
+            {
+              "fieldId": "message",
+              "fieldValue": "={{ $json.decision.payload.message ?? $json.mensaje }}"
+            },
+            {
+              "fieldId": "remind_at",
+              "fieldValue": "={{ $json.decision.payload.remind_at ?? new Date(Date.now() + 24*60*60*1000).toISOString() }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "pendiente"
+            },
+            {
+              "fieldId": "category",
+              "fieldValue": "={{ $json.decision.payload.category ?? \"manual\" }}"
+            }
+          ]
+        }
+      },
+      "id": "7b292c8c-861b-4e6f-80d8-4d37028cecf8",
+      "name": "Crear Reminder",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        29088,
+        13216
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $(\"Preparar Prompt AI\").first().json.chat_id }}",
+        "text": "={{ $(\"Parsear Decision\").first().json.decision.reply_text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        },
+        "appendAttribution": false
+      },
+      "id": "881e53a1-2e1a-4539-8a52-d2e0b87ea98f",
+      "name": "Enviar Respuesta Crear Prospect",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        27984,
+        12160
+      ],
+      "webhookId": "273b5eda-c0aa-4363-b6aa-9856a4c5c1fa",
+      "credentials": {
+        "telegramApi": {
+          "id": "KwPKAA20aHtjCLeE",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "raw_messages",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "source",
+              "fieldValue": "telegram"
+            },
+            {
+              "fieldId": "direction",
+              "fieldValue": "outbound"
+            },
+            {
+              "fieldId": "kind",
+              "fieldValue": "text"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $json.result?.text ?? $json.text ?? $json.output ?? $(\"Parsear Decision\").first().json.decision.reply_text ?? \"\" }}"
+            },
+            {
+              "fieldId": "telegram_message_id"
+            },
+            {
+              "fieldId": "metadata",
+              "fieldValue": "={{ { chat_id: \"7512675688\" } }}"
+            }
+          ]
+        }
+      },
+      "id": "b6987fa0-9970-4f66-9dd3-7e54969704fa",
+      "name": "Guardar Salida Crear Prospect",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        28224,
+        12160
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $(\"Preparar Prompt AI\").first().json.chat_id }}",
+        "text": "={{ $(\"Parsear Decision\").first().json.decision.reply_text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        },
+        "appendAttribution": false
+      },
+      "id": "abe115c7-d2ad-474e-ae39-b1e4f1f4dfdd",
+      "name": "Enviar Respuesta Actualizar Etapa",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        28224,
+        12480
+      ],
+      "webhookId": "a63845dc-a567-4ee0-86a3-9ecd509b734e",
+      "credentials": {
+        "telegramApi": {
+          "id": "KwPKAA20aHtjCLeE",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "raw_messages",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "source",
+              "fieldValue": "telegram"
+            },
+            {
+              "fieldId": "direction",
+              "fieldValue": "outbound"
+            },
+            {
+              "fieldId": "kind",
+              "fieldValue": "text"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $json.result?.text ?? $json.text ?? $json.output ?? $(\"Parsear Decision\").first().json.decision.reply_text ?? \"\" }}"
+            },
+            {
+              "fieldId": "telegram_message_id"
+            },
+            {
+              "fieldId": "metadata",
+              "fieldValue": "={{ { chat_id: \"7512675688\" } }}"
+            }
+          ]
+        }
+      },
+      "id": "76ddf792-f16c-4700-a743-0888d95cdca7",
+      "name": "Guardar Salida Actualizar Etapa",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        28896,
+        12192
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $(\"Preparar Prompt AI\").first().json.chat_id }}",
+        "text": "={{ $(\"Parsear Decision\").first().json.decision.reply_text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        },
+        "appendAttribution": false
+      },
+      "id": "0f5eb21e-31a3-4822-86e5-5ce80aa6e777",
+      "name": "Enviar Respuesta Agregar Nota",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        28496,
+        12688
+      ],
+      "webhookId": "12b619aa-c07a-4fd5-98b9-97acd934ab45",
+      "credentials": {
+        "telegramApi": {
+          "id": "KwPKAA20aHtjCLeE",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "raw_messages",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "source",
+              "fieldValue": "telegram"
+            },
+            {
+              "fieldId": "direction",
+              "fieldValue": "outbound"
+            },
+            {
+              "fieldId": "kind",
+              "fieldValue": "text"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $json.result?.text ?? $json.text ?? $json.output ?? $(\"Parsear Decision\").first().json.decision.reply_text ?? \"\" }}"
+            },
+            {
+              "fieldId": "telegram_message_id"
+            },
+            {
+              "fieldId": "metadata",
+              "fieldValue": "={{ { chat_id: \"7512675688\" } }}"
+            }
+          ]
+        }
+      },
+      "id": "0f429432-f9c2-4127-bdc6-784eae2e59bf",
+      "name": "Guardar Salida Agregar Nota",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        28768,
+        12688
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $(\"Preparar Prompt AI\").first().json.chat_id }}",
+        "text": "={{ $(\"Parsear Decision\").first().json.decision.reply_text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        },
+        "appendAttribution": false
+      },
+      "id": "5d8ec110-2bb5-40f0-9502-42005cf4407b",
+      "name": "Enviar Respuesta Follow Up",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        28944,
+        12992
+      ],
+      "webhookId": "a65ab248-ae69-46b5-b3f2-6e52cd815d0a",
+      "credentials": {
+        "telegramApi": {
+          "id": "KwPKAA20aHtjCLeE",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "raw_messages",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "source",
+              "fieldValue": "telegram"
+            },
+            {
+              "fieldId": "direction",
+              "fieldValue": "outbound"
+            },
+            {
+              "fieldId": "kind",
+              "fieldValue": "text"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $json.result?.text ?? $json.text ?? $json.output ?? $(\"Parsear Decision\").first().json.decision.reply_text ?? \"\" }}"
+            },
+            {
+              "fieldId": "telegram_message_id"
+            },
+            {
+              "fieldId": "metadata",
+              "fieldValue": "={{ { chat_id: \"7512675688\" } }}"
+            }
+          ]
+        }
+      },
+      "id": "f5a0a227-216e-43bc-a5b3-a73b4adb421f",
+      "name": "Guardar Salida Follow Up",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        29216,
+        12960
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $(\"Preparar Prompt AI\").first().json.chat_id }}",
+        "text": "={{ $(\"Parsear Decision\").first().json.decision.reply_text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        },
+        "appendAttribution": false
+      },
+      "id": "3f96caab-efef-4b68-9689-d38cfaea028f",
+      "name": "Enviar Respuesta Reminder",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        29360,
+        13248
+      ],
+      "webhookId": "a85b77b7-6d2c-45cf-aaa3-121a0ba290b9",
+      "credentials": {
+        "telegramApi": {
+          "id": "KwPKAA20aHtjCLeE",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "raw_messages",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "source",
+              "fieldValue": "telegram"
+            },
+            {
+              "fieldId": "direction",
+              "fieldValue": "outbound"
+            },
+            {
+              "fieldId": "kind",
+              "fieldValue": "text"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $json.result?.text ?? $json.text ?? $json.output ?? $(\"Parsear Decision\").first().json.decision.reply_text ?? \"\" }}"
+            },
+            {
+              "fieldId": "telegram_message_id"
+            },
+            {
+              "fieldId": "metadata",
+              "fieldValue": "={{ { chat_id: \"7512675688\" } }}"
+            }
+          ]
+        }
+      },
+      "id": "82323e22-987d-4a98-be37-0a0b0f709987",
+      "name": "Guardar Salida Reminder",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        29584,
+        13216
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "=7512675688",
+        "text": "={{ $(\"Parsear Decision\").first().json.decision.reply_text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        },
+        "appendAttribution": false
+      },
+      "id": "7acf5434-0b82-45c6-8747-ce973c46af1c",
+      "name": "Enviar Respuesta Directa",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        28896,
+        13392
+      ],
+      "webhookId": "34a97711-6938-4cc7-9a74-f8836e1035c8",
+      "credentials": {
+        "telegramApi": {
+          "id": "KwPKAA20aHtjCLeE",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "raw_messages",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "source",
+              "fieldValue": "telegram"
+            },
+            {
+              "fieldId": "direction",
+              "fieldValue": "outbound"
+            },
+            {
+              "fieldId": "kind",
+              "fieldValue": "text"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $json.result?.text ?? $json.text ?? $json.output ?? $(\"Parsear Decision\").first().json.decision.reply_text ?? \"\" }}"
+            },
+            {
+              "fieldId": "telegram_message_id"
+            },
+            {
+              "fieldId": "metadata",
+              "fieldValue": "={{ { chat_id: \"7512675688\" } }}"
+            }
+          ]
+        }
+      },
+      "id": "6171fb20-d2cb-4168-9d88-b9de67cba466",
+      "name": "Guardar Salida Directa",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        29136,
+        13408
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 8 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "55979147-23e1-445b-ad85-e733f5906a1b",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        25008,
+        13712
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "follow_ups",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "pendiente"
+            }
+          ]
+        }
+      },
+      "id": "f7f25d05-d47f-492b-b9a1-1fdcf8868668",
+      "name": "Traer Follow Ups Pendientes",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        25248,
+        13520
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "faaae374-e062-4bf9-93bb-90f2767715ae",
+              "name": "_source",
+              "value": "follow_ups",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9f3b73df-f8e6-4d8c-a793-bbf24a3b427e",
+      "name": "Tag Follow Ups",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        25488,
+        13520
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "reminders",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "pendiente"
+            }
+          ]
+        }
+      },
+      "id": "149c2081-ade5-4e9c-91c2-93e4b3acd594",
+      "name": "Traer Reminders Pendientes",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        25248,
+        13712
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "bbc7a703-19b9-436a-8e7b-af34bc8212f6",
+              "name": "_source",
+              "value": "reminders",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "192a7166-1f21-4eef-bf41-71291a5c45b1",
+      "name": "Tag Reminders",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        25488,
+        13712
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "prospects",
+        "returnAll": true
+      },
+      "id": "cf043a68-3b37-4078-abf0-df84663212e2",
+      "name": "Traer Prospects Daily",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        25248,
+        13920
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "051af6aa-e4a4-4597-aa2e-49af21799ec7",
+              "name": "_source",
+              "value": "prospects",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "abdd136c-3cc8-4b9b-848d-9a2460b23dc3",
+      "name": "Tag Prospects",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        25488,
+        13920
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 8
+      },
+      "id": "d9d08324-d811-4bef-b492-8a04d6fe2b8f",
+      "name": "Merge Daily Context",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        25728,
+        13712
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const buckets = {\n  follow_ups: [],\n  reminders: [],\n  prospects: [],\n  monthly_goals: [],\n  goal_tasks: [],\n  work_activity_log: [],\n  daily_work_plans: [],\n  daily_work_scores: [],\n  sales_campaigns: [],\n  commercial_playbooks: [],\n};\n\nfor (const item of items) {\n  const source = item.json._source;\n  if (source && buckets[source]) buckets[source].push(item.json);\n}\n\nconst now = new Date();\nconst today = now.toISOString().slice(0, 10);\nconst thisMonth = today.slice(0, 7);\n\nconst activeGoals = buckets.monthly_goals\n  .filter((goal) => goal.status === 'activo' && String(goal.month ?? '').startsWith(thisMonth))\n  .slice(0, 12);\n\nconst pendingTasks = buckets.goal_tasks\n  .filter((task) => task.status !== 'hecho')\n  .slice(0, 40);\n\nconst pendingFollowUps = buckets.follow_ups\n  .filter((item) => item.status === 'pendiente')\n  .slice(0, 40);\n\nconst pendingReminders = buckets.reminders\n  .filter((item) => item.status === 'pendiente')\n  .slice(0, 40);\n\nconst recentActivity = buckets.work_activity_log.slice(0, 60);\nconst latestScore = buckets.daily_work_scores[0] ?? null;\nconst latestPlan = buckets.daily_work_plans[0] ?? null;\n\nconst chatInput = [\n  'Arma la agenda comercial de hoy para Ortu.',\n  '',\n  'OBJETIVO:',\n  'Devolver un mensaje concreto, accionable y basado en datos reales.',\n  '',\n  'FORMATO:',\n  'Agenda de hoy',\n  '',\n  'Objetivo del mes:',\n  '- mencionar objetivos reales activos. Si no hay, pedir cargar 1 objetivo mensual.',\n  '',\n  'Prioridad 1:',\n  '- tarea concreta con nombre real si aplica.',\n  '',\n  'Prioridad 2:',\n  '- tarea concreta vinculada a objetivos.',\n  '',\n  'Prioridad 3:',\n  '- tarea concreta de prospeccion, seguimiento o estrategia.',\n  '',\n  'Score estimado de arranque: N/100',\n  '',\n  'Para cerrar bien el dia:',\n  '- cantidad concreta de acciones necesarias.',\n  '- pedir que a la tarde responda: hoy hice... para generar score final real.',\n  '',\n  'REGLAS ESTRICTAS:',\n  '- No decir \"follow ups vencidos\" en abstracto.',\n  '- No inventar Cliente X ni nombres si no estan en datos.',\n  '- No usar frases genericas tipo \"vamos con todo\".',\n  '- Si faltan objetivos o datos, decir exactamente que falta cargar.',\n  '- Usar prospects reales cuando existan.',\n  '- Conectar cada prioridad con un objetivo mensual o una oportunidad real.',\n  '- Calcular ritmo mensual esperado: avance actual vs avance que deberia llevar hoy.',\n  '- Si hay reuniones o propuestas futuras, mencionarlas como pipeline y no como fracaso.',\n  '',\n  'OBJETIVOS ACTIVOS:',\n  JSON.stringify(activeGoals, null, 2),\n  '',\n  'TAREAS DE OBJETIVOS PENDIENTES:',\n  JSON.stringify(pendingTasks, null, 2),\n  '',\n  'FOLLOW UPS PENDIENTES:',\n  JSON.stringify(pendingFollowUps, null, 2),\n  '',\n  'REMINDERS PENDIENTES:',\n  JSON.stringify(pendingReminders, null, 2),\n  '',\n  'PROSPECTS:',\n  JSON.stringify(buckets.prospects.slice(0, 80), null, 2),\n  '',\n  'ACTIVIDAD RECIENTE:',\n  JSON.stringify(recentActivity, null, 2),\n  '',\n  'ULTIMO SCORE:',\n  JSON.stringify(latestScore, null, 2),\n  '',\n  'CAMPANAS ACTIVAS:',\n  JSON.stringify(buckets.sales_campaigns.slice(0, 30), null, 2),\n  '',\n  'PLAYBOOKS COMERCIALES:',\n  JSON.stringify(buckets.commercial_playbooks.slice(0, 20), null, 2),\n  '',\n  'ULTIMO PLAN:',\n  JSON.stringify(latestPlan, null, 2),\n  ...(now.getDay() === 1 ? [\n    '',\n    'HOY ES LUNES — ARRANQUE DE SEMANA OBLIGATORIO:',\n    'Antes de las prioridades del día, incluí este bloque:',\n    '- Qué quedó sin resolver de la semana pasada (basate en actividad reciente y último score).',\n    '- Cuántos días hábiles quedan en el mes y el ritmo necesario para llegar al objetivo.',\n    '- Las 2 acciones más importantes de esta semana (no del día, de la semana entera).',\n    '- Un prospect en propuesta o reunión que no puede quedar sin seguimiento esta semana.',\n  ] : []),\n  ...(now.getDay() === 5 ? [\n    '',\n    'HOY ES VIERNES — BALANCE SEMANAL OBLIGATORIO:',\n    'Al final del mensaje de agenda, incluí un bloque separado con:',\n    '- Balance de la semana: qué se logró concretamente (números reales) y qué quedó pendiente.',\n    '- Ritmo actual vs ritmo necesario para llegar al objetivo mensual (calculalo).',\n    '- Una cosa que Ortu hizo bien esta semana.',\n    '- Una cosa que Ortu debería cambiar o hacer diferente la semana que viene.',\n    '- Foco de la semana que viene: máximo 2 prioridades.',\n    `- Actividad registrada esta semana: ${recentActivity.filter(a => { try { const d = new Date(a.activity_date || a.created_at); return (now - d) / (1000*60*60*24) <= 7; } catch(e) { return false; } }).length} registros.`,\n  ] : []),\n].join('\\n');\n\nreturn [\n  {\n    json: {\n      chatInput,\n      chat_id: '7512675688',\n      plan_date: today,\n      score_start: latestScore?.score ?? 0,\n    },\n  },\n];"
+      },
+      "id": "819821b1-f9b4-43cb-98de-1a7c19f0a0f6",
+      "name": "Preparar Contexto Diario",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        25968,
+        13712
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "7512675688",
+        "text": "={{ $(\"AI Agent1\").first().json.output ?? $(\"AI Agent1\").first().json.text ?? $(\"AI Agent1\").first().json.response ?? \"Faltan datos para armar la agenda diaria.\" }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        },
+        "appendAttribution": false
+      },
+      "id": "efef7850-e512-42c0-ad60-8f0abd79677f",
+      "name": "Enviar Recordatorio Diario",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        26448,
+        13712
+      ],
+      "webhookId": "3ec00b7e-b798-491d-996c-80bd747261ba",
+      "credentials": {
+        "telegramApi": {
+          "id": "KwPKAA20aHtjCLeE",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "raw_messages",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "source",
+              "fieldValue": "telegram"
+            },
+            {
+              "fieldId": "direction",
+              "fieldValue": "outbound"
+            },
+            {
+              "fieldId": "kind",
+              "fieldValue": "system"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $json.result?.text ?? $(\"AI Agent1\").first().json.output ?? $(\"AI Agent1\").first().json.text ?? \"\" }}"
+            },
+            {
+              "fieldId": "telegram_message_id"
+            },
+            {
+              "fieldId": "metadata",
+              "fieldValue": "={{ { chat_id: \"7512675688\", category: \"daily_suggestion\" } }}"
+            }
+          ]
+        }
+      },
+      "id": "cbb8e9fc-2f99-41a4-a252-f556252dcaad",
+      "name": "Guardar Salida Daily",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        26688,
+        13712
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "Sos el asistente personal de Ortu, fundador de WIS Agency (agencia de automatización IA en Buenos Aires).\n\nTu rol es secretario + CRM. Recibís mensajes en texto o audio transcripto. Siempre respondés en español rioplatense, primera persona, sin formalidades.\n\nREGLAS DE COMPORTAMIENTO:\n- Respondé siempre en JSON válido con el schema exacto que se te da en cada mensaje\n- Nunca inventes IDs ni datos que no estén en el contexto\n- Si el usuario saluda o conversa, usá action_type: no_action y respondé natural\n- Si no entendés el mensaje, pedí que lo repita con un ejemplo\n- Cuando el usuario dice \"hecho\", \"listo\" o \"cumplido\" → complete_secretary_task\n- Cuando dice \"después\", \"paso\", \"no pude\" → postpone_secretary_task\n- Usá el contexto de prospects para hacer referencias concretas por nombre real\n- Si el usuario pide cargar un objetivo mensual, usa create_monthly_goal\n- Si el usuario dice que hizo una accion laboral, usa log_work_activity\n- Si el usuario responde el cierre diario o dice \"hoy hice\", \"te cuento mi dia\", usa daily_closeout\n- Si el usuario escribe /pipeline o pide ver el pipeline, usa show_pipeline con payload vacío\n- Si el usuario da la causa de pérdida de un prospect (precio, timing, competencia, fit, sin respuesta), usa log_loss_reason. payload: {prospect_id, reason}\n\nPERSONALIDAD:\n- Directo, sin vueltas\n- Usá el nombre real de los prospects cuando los mencionás\n- Si ves que un prospect lleva días sin contacto, mencionalo proactivamente\n- Si el usuario da info vaga, pedí el dato que falta (no asumas)\n- Responde corto, concreto, una sola acción siguiente\n- Si el usuario pide ideas o ángulos para hablarle a un prospect (\"qué le digo\", \"dame ideas\", \"cómo lo abordo\"), generá 3 ángulos concretos en reply_text: uno basado en el sector/rubro, uno basado en los días sin respuesta, uno basado en la etapa actual. action_type: no_action. No inventes si no tenés datos del prospect.\n\nPara daily_closeout, el payload debe incluir: raw_text, summary, wins, blockers, tomorrow_focus, contacts_count, follow_ups_done, proposals_sent, meetings_count, goal_progress_points, score (1-100), notes, recommendations. El score va de 1 a 100, no castigues de más si hay pipeline creado o reuniones agendadas.\nSi detectas cantidades, convertirlas a números. Si no hay dato, usar 0. Nunca mandar strings \"null\", vacíos o \"=\" para campos numéricos.\nValores para create_prospect: channel solo whatsapp/linkedin/email/referido/telegram/otro; stage solo frio/contactado/reunion/propuesta/cliente. Si dudas, channel=otro y stage=frio. birthday solo YYYY-MM-DD. estimated_value solo número. next_action_at solo fecha ISO válida o no lo envíes.\nNo inventés IDs. Si falta un ID, dejá el campo vacío y explicá el próximo paso."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        26976,
+        12688
+      ],
+      "id": "c8350745-fd5e-4ad5-9b89-36f69d38e1d9",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        26992,
+        12944
+      ],
+      "id": "c0448b16-a299-4707-a859-86a0266de1eb",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "TZSDRm7FKd2wissN",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "Sos el asistente comercial diario de Ortu.\nConvertis objetivos mensuales, tareas y datos reales del CRM en una agenda diaria concreta.\nNo uses motivacion generica.\nNo digas \"follow ups vencidos\" sin nombrar a quien o que falta cargar.\nNo inventes Cliente X ni nombres.\nSi faltan objetivos, pedi exactamente cargar objetivo mensual y tareas palanca.\nResponde texto listo para Telegram.\nCalcula ritmo mensual: si el objetivo es 5 clientes en el mes, divide por dias habiles/restantes y explica el ritmo esperado sin dramatizar.\nSi hay reuniones o propuestas futuras, tratalas como pipeline saludable y propone acciones para aumentar probabilidad de cierre.\nEl mensaje de la manana no es el score final: pedir al final que Ortu responda a la tarde que hizo hoy para calcular el score real."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        26128,
+        13728
+      ],
+      "id": "ce097189-729f-4c6e-88a1-785fe14f34e4",
+      "name": "AI Agent1"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        26192,
+        14064
+      ],
+      "id": "1de8158e-4895-40e9-a74d-0b2463ba2549",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "TZSDRm7FKd2wissN",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "id": "aa391fcf-c0bd-476d-a8a9-6eff3008994b",
+      "name": "Traer Objetivos Mensuales",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        25248,
+        13248
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      },
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "monthly_goals",
+        "returnAll": true
+      }
+    },
+    {
+      "id": "55c89a8c-dbb5-4f5c-8a77-889ab3bc76bd",
+      "name": "Tag Objetivos Mensuales",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        25488,
+        13248
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2366d82d-d8c2-49ce-972e-12bbf4fcc1b2",
+              "name": "_source",
+              "value": "monthly_goals",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "04387017-812e-48fb-8dea-326ba795de05",
+      "name": "Traer Tareas de Objetivos",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        25248,
+        13456
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      },
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "goal_tasks",
+        "returnAll": true
+      }
+    },
+    {
+      "id": "ae9738b7-4c63-4232-9a84-e7c989059c07",
+      "name": "Tag Tareas Objetivos",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        25488,
+        13456
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1a21a9d2-3c3d-4917-bb43-e07d29aa4cbf",
+              "name": "_source",
+              "value": "goal_tasks",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d36cc34f-03af-470b-b8ec-b9e743c5f606",
+      "name": "Traer Actividad Laboral",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        25248,
+        13664
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      },
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "work_activity_log",
+        "returnAll": true
+      }
+    },
+    {
+      "id": "0d3a3285-9364-4bf6-bfa9-6d6002e85c50",
+      "name": "Tag Actividad Laboral",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        25488,
+        13664
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "054cb5de-bc42-4229-9596-1542e84d8c93",
+              "name": "_source",
+              "value": "work_activity_log",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b483e8f2-f082-470f-b8c6-dabe15bd93f4",
+      "name": "Traer Planes Diarios",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        25248,
+        13872
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      },
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "daily_work_plans",
+        "returnAll": true
+      }
+    },
+    {
+      "id": "be05388e-a716-453d-b45f-7717fbafe798",
+      "name": "Tag Planes Diarios",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        25488,
+        13872
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "af48facd-39b7-467b-bbd8-ac11589e21a5",
+              "name": "_source",
+              "value": "daily_work_plans",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "6d8afdb5-b371-4318-b9ab-7e30127a2b2a",
+      "name": "Traer Score Diario",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        25248,
+        14080
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      },
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "daily_work_scores",
+        "returnAll": true
+      }
+    },
+    {
+      "id": "286459aa-98c2-4146-bdbe-2ac3da6c1560",
+      "name": "Tag Score Diario",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        25488,
+        14080
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a969561e-15a1-434e-a4d5-88eb9a285132",
+              "name": "_source",
+              "value": "daily_work_scores",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "2b514a0b-600c-4df2-85b2-9a5d45ecaf28",
+      "name": "Guardar Plan Diario",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        26448,
+        13936
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      },
+      "parameters": {
+        "tableId": "daily_work_plans",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "plan_date",
+              "fieldValue": "={{ $(\"Preparar Contexto Diario\").first().json.plan_date }}"
+            },
+            {
+              "fieldId": "summary",
+              "fieldValue": "={{ $json.output ?? $json.text ?? $json.response ?? \"\" }}"
+            },
+            {
+              "fieldId": "priorities",
+              "fieldValue": "={{ [] }}"
+            },
+            {
+              "fieldId": "score_start",
+              "fieldValue": "={{ $(\"Preparar Contexto Diario\").first().json.score_start ?? 0 }}"
+            },
+            {
+              "fieldId": "generated_by",
+              "fieldValue": "n8n"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "8d3c0f8a-735d-49ab-b280-c3ca370f42f5",
+      "name": "Es Crear Objetivo Mensual?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        31000,
+        12688
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1c69b8d1-33f1-4b84-b8cc-7eddf5701c49",
+              "leftValue": "={{ $json.decision.action_type }}",
+              "rightValue": "create_monthly_goal",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b111bd5e-fb15-46bd-94a2-a377e6939c13",
+      "name": "Es Crear Tarea Objetivo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        31240,
+        12688
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3bbaf6f9-f405-45d2-9ca4-708ec7427c61",
+              "leftValue": "={{ $json.decision.action_type }}",
+              "rightValue": "create_goal_task",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e6ea06d7-4fa2-4395-b8bc-013e76aa1390",
+      "name": "Es Registrar Actividad Laboral?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        31480,
+        12688
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "85eb0bdd-f386-49a5-921c-bd1b3d08354a",
+              "leftValue": "={{ $json.decision.action_type }}",
+              "rightValue": "log_work_activity",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d0a16583-01de-4afb-a43e-ff19f4406e68",
+      "name": "Crear Objetivo Mensual",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        31000,
+        12928
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      },
+      "parameters": {
+        "tableId": "monthly_goals",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $json.decision.payload.title || $json.mensaje }}"
+            },
+            {
+              "fieldId": "description",
+              "fieldValue": "={{ $json.decision.payload.description || \"\" }}"
+            },
+            {
+              "fieldId": "month",
+              "fieldValue": "={{ new Date().toISOString().slice(0, 8) + \"01\" }}"
+            },
+            {
+              "fieldId": "target_value",
+              "fieldValue": "={{ Number($json.decision.payload.target_value || 1) }}"
+            },
+            {
+              "fieldId": "current_value",
+              "fieldValue": "0"
+            },
+            {
+              "fieldId": "unit",
+              "fieldValue": "={{ $json.decision.payload.unit || \"clientes\" }}"
+            },
+            {
+              "fieldId": "business_area",
+              "fieldValue": "={{ $json.decision.payload.business_area || \"general\" }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "activo"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "4bddc612-0939-4545-8a77-69d8be6cfc53",
+      "name": "Crear Tarea Objetivo",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        31240,
+        12928
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      },
+      "parameters": {
+        "tableId": "goal_tasks",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "goal_id",
+              "fieldValue": "={{ $json.decision.payload.goal_id || undefined }}"
+            },
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $json.decision.payload.title || $json.mensaje }}"
+            },
+            {
+              "fieldId": "description",
+              "fieldValue": "={{ $json.decision.payload.description || \"\" }}"
+            },
+            {
+              "fieldId": "category",
+              "fieldValue": "={{ $json.decision.payload.category || \"otro\" }}"
+            },
+            {
+              "fieldId": "target_count",
+              "fieldValue": "={{ Number($json.decision.payload.target_count || 1) }}"
+            },
+            {
+              "fieldId": "completed_count",
+              "fieldValue": "0"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "pendiente"
+            },
+            {
+              "fieldId": "due_date",
+              "fieldValue": "={{ $json.decision.payload.due_date || undefined }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "dd5579f0-2bf5-4d46-a12e-9de67412d949",
+      "name": "Registrar Actividad Laboral",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        31480,
+        12928
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      },
+      "parameters": {
+        "tableId": "work_activity_log",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "activity_date",
+              "fieldValue": "={{ new Date().toISOString().slice(0, 10) }}"
+            },
+            {
+              "fieldId": "type",
+              "fieldValue": "={{ $json.decision.payload.type || \"otro\" }}"
+            },
+            {
+              "fieldId": "quantity",
+              "fieldValue": "={{ Number($json.decision.payload.quantity || 1) }}"
+            },
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $json.decision.payload.title || $json.mensaje }}"
+            },
+            {
+              "fieldId": "notes",
+              "fieldValue": "={{ $json.decision.payload.notes || \"\" }}"
+            },
+            {
+              "fieldId": "prospect_id",
+              "fieldValue": "={{ $json.decision.payload.prospect_id || $json.decision.prospect_id || undefined }}"
+            },
+            {
+              "fieldId": "goal_id",
+              "fieldValue": "={{ $json.decision.payload.goal_id || undefined }}"
+            },
+            {
+              "fieldId": "metadata",
+              "fieldValue": "={{ { source: \"telegram\" } }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 18 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "3f219038-471f-469f-86f9-8067fa2e1b2f",
+      "name": "Cierre Diario Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        25008,
+        14272
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "7512675688",
+        "text": "Cierre del dia\n\nContame con un audio o texto que hiciste hoy.\n\nEjemplo:\nhoy escribi a 12 hoteles, hice 3 follow ups, mande 2 propuestas y agende 1 reunion para la semana que viene.\n\nCon eso te calculo el score real del dia y que conviene ajustar manana.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        },
+        "appendAttribution": false
+      },
+      "id": "ac128276-e094-43fc-9427-c9b3fcdffe43",
+      "name": "Preguntar Cierre Diario",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        25248,
+        14272
+      ],
+      "webhookId": "b8fce50b-2516-4493-969e-481f288d8217",
+      "credentials": {
+        "telegramApi": {
+          "id": "KwPKAA20aHtjCLeE",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "id": "1d49a5a8-2c29-4be4-bede-34bc2f47a241",
+      "name": "Es Cierre Diario?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        31720,
+        12688
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cb683aac-6137-475e-bd03-1c98ff94500e",
+              "leftValue": "={{ $json.decision.action_type }}",
+              "rightValue": "daily_closeout",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "1370a193-65ff-404f-8900-d18de73a98a6",
+      "name": "Guardar Cierre Diario",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        31720,
+        12928
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      },
+      "parameters": {
+        "tableId": "daily_closeouts",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "closeout_date",
+              "fieldValue": "={{ new Date().toISOString().slice(0, 10) }}"
+            },
+            {
+              "fieldId": "raw_text",
+              "fieldValue": "={{ $json.decision.payload.raw_text || $json.mensaje || \"\" }}"
+            },
+            {
+              "fieldId": "summary",
+              "fieldValue": "={{ $json.decision.payload.summary || \"\" }}"
+            },
+            {
+              "fieldId": "wins",
+              "fieldValue": "={{ $json.decision.payload.wins || \"\" }}"
+            },
+            {
+              "fieldId": "blockers",
+              "fieldValue": "={{ $json.decision.payload.blockers || \"\" }}"
+            },
+            {
+              "fieldId": "tomorrow_focus",
+              "fieldValue": "={{ $json.decision.payload.tomorrow_focus || \"\" }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "f663871c-0f18-487e-82b3-02bb4b2330ea",
+      "name": "Guardar Score Diario",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        31960,
+        12928
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      },
+      "parameters": {
+        "tableId": "daily_work_scores",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "score_date",
+              "fieldValue": "={{ new Date().toISOString().slice(0, 10) }}"
+            },
+            {
+              "fieldId": "score",
+              "fieldValue": "={{ Math.max(0, Math.min(100, Number($(\"Parsear Decision\").first().json.decision.payload.score || 0))) }}"
+            },
+            {
+              "fieldId": "source",
+              "fieldValue": "telegram_closeout"
+            },
+            {
+              "fieldId": "closeout_id",
+              "fieldValue": "={{ $json.id || undefined }}"
+            },
+            {
+              "fieldId": "contacts_count",
+              "fieldValue": "={{ Number($(\"Parsear Decision\").first().json.decision.payload.contacts_count || 0) }}"
+            },
+            {
+              "fieldId": "follow_ups_done",
+              "fieldValue": "={{ Number($(\"Parsear Decision\").first().json.decision.payload.follow_ups_done || 0) }}"
+            },
+            {
+              "fieldId": "proposals_sent",
+              "fieldValue": "={{ Number($(\"Parsear Decision\").first().json.decision.payload.proposals_sent || 0) }}"
+            },
+            {
+              "fieldId": "meetings_count",
+              "fieldValue": "={{ Number($(\"Parsear Decision\").first().json.decision.payload.meetings_count || 0) }}"
+            },
+            {
+              "fieldId": "goal_progress_points",
+              "fieldValue": "={{ Number($(\"Parsear Decision\").first().json.decision.payload.goal_progress_points || 0) }}"
+            },
+            {
+              "fieldId": "notes",
+              "fieldValue": "={{ $(\"Parsear Decision\").first().json.decision.payload.notes || \"\" }}"
+            },
+            {
+              "fieldId": "recommendations",
+              "fieldValue": "={{ $(\"Parsear Decision\").first().json.decision.payload.recommendations || \"\" }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "93e24ccc-ff2a-4cd8-a0e6-7d28fb805ab5",
+      "name": "Traer Campanas Comerciales",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        25248,
+        14048
+      ],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "sales_campaigns",
+        "returnAll": true
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "id": "bc3ac37d-8545-4a43-b5f7-0e2cbc058ab7",
+      "name": "Tag Campanas Comerciales",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        25488,
+        14048
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6c65dba8-7948-4997-b6d3-fe13a8286132",
+              "name": "_source",
+              "value": "sales_campaigns",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d8277125-defc-42c4-8b21-6ae8e9d0ce37",
+      "name": "Traer Playbooks Comerciales",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        25248,
+        14240
+      ],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "commercial_playbooks",
+        "returnAll": true
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "id": "ba3bdf8d-3310-40ad-b010-b4e99ca2064f",
+      "name": "Tag Playbooks Comerciales",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        25488,
+        14240
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3b067513-3dea-41a7-a0da-7151d5c0202e",
+              "name": "_source",
+              "value": "commercial_playbooks",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "eee5f71b-a777-403d-8e28-4f21d755b11e",
+      "name": "Es Crear Campana Comercial?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        31960,
+        12688
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f1a0d70e-adb4-4705-b633-410f1e0a9672",
+              "leftValue": "={{ $json.decision.action_type }}",
+              "rightValue": "create_sales_campaign",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "db7d1b30-5ed7-4c12-9af7-32038b97be61",
+      "name": "Es Crear Playbook?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        32200,
+        12688
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "20db5a50-89a0-4598-ba59-054118207dd0",
+              "leftValue": "={{ $json.decision.action_type }}",
+              "rightValue": "create_playbook",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ebd79041-6065-4e87-874a-012d671f42df",
+      "name": "Crear Campana Comercial",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        32200,
+        12928
+      ],
+      "parameters": {
+        "tableId": "sales_campaigns",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "name",
+              "fieldValue": "={{ $json.decision.payload.name || $json.mensaje }}"
+            },
+            {
+              "fieldId": "objective",
+              "fieldValue": "={{ $json.decision.payload.objective || \"\" }}"
+            },
+            {
+              "fieldId": "business_area",
+              "fieldValue": "={{ $json.decision.payload.business_area || \"general\" }}"
+            },
+            {
+              "fieldId": "target_channel",
+              "fieldValue": "={{ (() => { const raw = String($json.decision.payload.target_channel || \"otro\").toLowerCase().trim(); return [\"whatsapp\",\"linkedin\",\"email\",\"referido\",\"telegram\",\"otro\"].includes(raw) ? raw : \"otro\"; })() }}"
+            },
+            {
+              "fieldId": "target_count",
+              "fieldValue": "={{ Number($json.decision.payload.target_count || 100) }}"
+            },
+            {
+              "fieldId": "completed_count",
+              "fieldValue": "0"
+            },
+            {
+              "fieldId": "daily_target",
+              "fieldValue": "={{ Number($json.decision.payload.daily_target || 20) }}"
+            },
+            {
+              "fieldId": "start_date",
+              "fieldValue": "={{ new Date().toISOString().slice(0, 10) }}"
+            },
+            {
+              "fieldId": "notes",
+              "fieldValue": "={{ $json.decision.payload.notes || \"\" }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "activa"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "id": "6bda520d-9bd6-4129-8394-933a61733c62",
+      "name": "Crear Playbook Comercial",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        32440,
+        12928
+      ],
+      "parameters": {
+        "tableId": "commercial_playbooks",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "name",
+              "fieldValue": "={{ $json.decision.payload.name || \"Playbook comercial\" }}"
+            },
+            {
+              "fieldId": "segment",
+              "fieldValue": "={{ $json.decision.payload.segment || \"general\" }}"
+            },
+            {
+              "fieldId": "channel",
+              "fieldValue": "={{ $json.decision.payload.channel || \"whatsapp\" }}"
+            },
+            {
+              "fieldId": "opening_message",
+              "fieldValue": "={{ $json.decision.payload.opening_message || \"\" }}"
+            },
+            {
+              "fieldId": "follow_up_message",
+              "fieldValue": "={{ $json.decision.payload.follow_up_message || \"\" }}"
+            },
+            {
+              "fieldId": "proposal_angle",
+              "fieldValue": "={{ $json.decision.payload.proposal_angle || \"\" }}"
+            },
+            {
+              "fieldId": "qualification_questions",
+              "fieldValue": "={{ Array.isArray($json.decision.payload.qualification_questions) ? $json.decision.payload.qualification_questions : [] }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "activo"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "id": "59b6335d-61fe-443f-bf92-2a82193e7951",
+      "name": "Secretario Horario Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        25008,
+        14656
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9-18 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "07025f6a-fa95-40f4-b560-8a960247e79e",
+      "name": "Traer Misiones Secretario",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        25248,
+        14560
+      ],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "secretary_tasks",
+        "returnAll": true
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "c7d60a18-70eb-43f7-afbb-d3dab181df2e",
+      "name": "Tag Misiones Secretario",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        25488,
+        14560
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4bb58f65-984e-4006-bfec-088442b4c33d",
+              "name": "_source",
+              "value": "secretary_tasks",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "3f487549-11db-49e0-a2f3-8ec02310ae99",
+      "name": "Traer Prospects Secretario",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        25248,
+        14752
+      ],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "prospects",
+        "returnAll": true
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "32994f27-6e28-4fed-ab72-be9252fbadc9",
+      "name": "Tag Prospects Secretario",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        25488,
+        14752
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fa2623d4-66b8-48f4-8444-866718b6c8c0",
+              "name": "_source",
+              "value": "prospects",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "dab504cb-7bed-4527-8967-28bf02920f8e",
+      "name": "Traer Campanas Secretario",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        25248,
+        14944
+      ],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "sales_campaigns",
+        "returnAll": true
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "a056bb34-5576-4459-b0a9-505481a4481e",
+      "name": "Tag Campanas Secretario",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        25488,
+        14944
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7fe360f0-906b-48fc-98cd-db6e8b7b58af",
+              "name": "_source",
+              "value": "sales_campaigns",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "618ec244-8005-4ea7-ab20-59cbb7583260",
+      "name": "Traer Preferencias Secretario",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        25248,
+        15136
+      ],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "secretary_preferences",
+        "returnAll": true
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "1c8379da-9480-4d5c-a36a-f56358ca665d",
+      "name": "Tag Preferencias Secretario",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        25488,
+        15136
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "88ddf7f7-65b2-4784-868b-8d23f8dc1b59",
+              "name": "_source",
+              "value": "secretary_preferences",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "232d6824-fe48-4446-9363-04f54a1f32a5",
+      "name": "Merge Secretario Contexto",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        25728,
+        14848
+      ],
+      "parameters": {
+        "numberInputs": 4
+      }
+    },
+    {
+      "id": "32092ab2-819f-4381-95c2-a95d1539368a",
+      "name": "Preparar Mision Secretario",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        25968,
+        14848
+      ],
+      "parameters": {
+        "jsCode": "const buckets = { secretary_tasks: [], prospects: [], sales_campaigns: [], secretary_preferences: [] };\nfor (const item of items) {\n  const source = item.json._source;\n  if (source && buckets[source]) buckets[source].push(item.json);\n}\n\nconst { secretary_tasks, prospects, sales_campaigns, secretary_preferences } = buckets;\nconst prefs = secretary_preferences[0] ?? {\n  display_name: 'Ortu',\n  mode: 'normal',\n  reminder_minutes: 45,\n  max_attempts: 2,\n  current_focus: '',\n  preferred_segments: [],\n  energy_mode: 'equilibrado',\n  current_state: 'arrancando',\n  daily_contact_target: 10,\n  daily_followup_target: 3,\n  daily_proposal_target: 1,\n  relationship_goal: '',\n  one_thing_rule: true,\n  coaching_style: 'concreto',\n};\n\nif (prefs.mode === 'pausa') return [];\n\nconst now = new Date();\nconst today = now.toISOString().slice(0, 10);\nconst firstName = String(prefs.display_name || 'Ortu').split(' ')[0];\nconst focus = prefs.current_focus ? String(prefs.current_focus).trim() : '';\nconst preferredSegments = Array.isArray(prefs.preferred_segments) ? prefs.preferred_segments.filter(Boolean) : [];\nconst energyMode = String(prefs.energy_mode || 'equilibrado');\nconst currentState = String(prefs.current_state || 'arrancando');\nconst coachingStyle = String(prefs.coaching_style || 'concreto');\nconst contactTarget = Number(prefs.daily_contact_target || 10);\nconst followTarget = Number(prefs.daily_followup_target || 3);\nconst proposalTarget = Number(prefs.daily_proposal_target || 1);\nconst reminderMinutes = Number(prefs.reminder_minutes || 45);\nconst maxAttempts = Number(prefs.max_attempts || 2);\nconst oneThingRule = Boolean(prefs.one_thing_rule ?? true);\n\nfunction daysSince(dateLike) {\n  if (!dateLike) return 999;\n  return Math.floor((Date.now() - new Date(dateLike).getTime()) / (1000 * 60 * 60 * 24));\n}\n\nfunction safeCompany(p) {\n  return p.company || p.name || 'este contacto';\n}\n\nfunction warmIntro() {\n  if (coachingStyle === 'amable') return `${firstName}, vamos simple.`;\n  if (coachingStyle === 'exigente') return `${firstName}, foco.`;\n  return `${firstName}, una cosa por vez.`;\n}\n\nfunction compactInstruction(text) {\n  if (!oneThingRule) return text;\n  return `${text}\\n\\nSolo resolvamos esto ahora.`;\n}\n\nfunction contactAsk() {\n  if (energyMode === 'suave' || currentState === 'saturado') return 1;\n  if (prefs.mode === 'liviano') return Math.min(3, Math.max(1, contactTarget));\n  if (prefs.mode === 'sprint') return Math.max(3, Math.min(contactTarget, 10));\n  return Math.max(2, Math.min(contactTarget, 6));\n}\n\nfunction followAsk() {\n  if (energyMode === 'suave' || currentState === 'saturado') return 1;\n  if (prefs.mode === 'liviano') return Math.min(2, Math.max(1, followTarget));\n  if (prefs.mode === 'sprint') return Math.max(2, Math.min(followTarget, 5));\n  return Math.max(1, Math.min(followTarget, 3));\n}\n\nfunction proposalAsk() {\n  if (energyMode === 'suave' || currentState === 'saturado') return Math.min(1, proposalTarget);\n  return Math.max(1, Math.min(proposalTarget, 2));\n}\n\nconst commitmentTask = secretary_tasks.find(t =>\n  t.task_type === 'commitment_check' &&\n  t.task_date === today &&\n  ['pendiente', 'en_progreso'].includes(t.status)\n);\n\nif (commitmentTask) {\n  const minSince = Math.floor((now - new Date(commitmentTask.reminded_at || commitmentTask.created_at)) / 60000);\n  if (minSince < reminderMinutes) return [];\n  return [{\n    json: {\n      mode: 'remind',\n      task_id: commitmentTask.id,\n      attempts: Number(commitmentTask.attempts || 0) + 1,\n      reminded_at: now.toISOString(),\n      message: `${warmIntro()} Ayer quedamos en esto:\\n\\\"${commitmentTask.instruction}\\\"\\n\\n�Lo hiciste? Contamelo corto.`\n    }\n  }];\n}\n\nconst last7 = secretary_tasks.filter(t => {\n  if (t.task_type === 'commitment_check') return false;\n  const d = new Date(t.task_date || t.created_at);\n  return (now - d) / (1000 * 60 * 60 * 24) <= 7;\n});\nconst done7 = last7.filter(t => t.status === 'hecha').length;\nconst rate7 = last7.length >= 4 ? Math.round(done7 / last7.length * 100) : null;\nconst recentTypes = last7.slice(-4).map(t => t.task_type);\nconst repeatedType = recentTypes.length >= 3 && new Set(recentTypes).size === 1 ? recentTypes[0] : null;\n\nconst birthdays = prospects\n  .filter(p => p.birthday)\n  .map(p => {\n    const b = new Date(p.birthday);\n    const next = new Date(now.getFullYear(), b.getMonth(), b.getDate());\n    return { prospect: p, days: Math.floor((next.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) };\n  })\n  .filter(item => item.days >= 0 && item.days <= 7)\n  .sort((a, b) => a.days - b.days);\n\nconst staleNonClient = prospects\n  .filter(p => p.stage !== 'cliente')\n  .map(p => ({ prospect: p, days: daysSince(p.last_contact_at || p.updated_at || p.created_at) }))\n  .sort((a, b) => b.days - a.days);\n\nconst hotFollowUps = staleNonClient.filter(item => ['propuesta', 'reunion', 'contactado'].includes(item.prospect.stage) && item.days >= 3);\nconst contactadosDormidos = staleNonClient.filter(item => item.prospect.stage === 'contactado' && item.days >= 5);\nconst campaignActiva = sales_campaigns.find(c => c.status === 'activa');\n\nfunction buildNextTask() {\n  if (birthdays[0] && prefs.relationship_goal) {\n    const b = birthdays[0];\n    return {\n      task_type: 'relationship_touch',\n      title: `Relaci�n: ${safeCompany(b.prospect)}`,\n      instruction: compactInstruction(`Cumple en ${b.days} d�a(s). Escribile algo humano a ${b.prospect.name}${b.prospect.company ? ` de ${b.prospect.company}` : ''}.`),\n      expected_response: 'Mensaje enviado o idea de mensaje.',\n      priority: 'media',\n    };\n  }\n\n  if (hotFollowUps[0]) {\n    const item = hotFollowUps[0];\n    return {\n      task_type: 'follow_up',\n      title: `Seguimiento caliente: ${safeCompany(item.prospect)}`,\n      instruction: compactInstruction(`${safeCompany(item.prospect)} lleva ${item.days} d�as sin respuesta y est� en ${item.prospect.stage}. Necesitamos moverlo hoy.`),\n      expected_response: 'Qu� hiciste o qu� necesit�s para moverlo.',\n      priority: item.prospect.stage === 'propuesta' ? 'alta' : 'media',\n    };\n  }\n\n  if (contactadosDormidos[0]) {\n    const item = contactadosDormidos[0];\n    return {\n      task_type: 'follow_up',\n      title: `Reactivar: ${safeCompany(item.prospect)}`,\n      instruction: compactInstruction(`Hac� ${followAsk()} seguimiento(s) concretos empezando por ${item.prospect.name}. Nada gen�rico: propuesta, pregunta directa o pr�ximo paso.`),\n      expected_response: 'Acci�n realizada o bloqueo.',\n      priority: 'media',\n    };\n  }\n\n  if (prospects.length < 10) {\n    const amount = contactAsk();\n    return {\n      task_type: 'collect_contacts',\n      title: 'Nutrir base comercial',\n      instruction: compactInstruction(`Mandame ${amount} contacto${amount === 1 ? '' : 's'} nuevo${amount === 1 ? '' : 's'}${focus ? ` para ${focus}` : ''}. Formato libre: nombre, empresa y rubro.`),\n      expected_response: 'Al menos un contacto nuevo.',\n      priority: 'media',\n    };\n  }\n\n  if (!campaignActiva) {\n    const segmentHint = preferredSegments.length ? preferredSegments.join(', ') : 'el segmento m�s urgente';\n    return {\n      task_type: 'create_campaign',\n      title: 'Definir campa�a de la semana',\n      instruction: compactInstruction(`Decime qu� frente atacamos ahora. Si no quer�s pensar mucho, eleg� entre: ${segmentHint}.`),\n      expected_response: 'Segmento o campa�a elegida.',\n      priority: 'media',\n    };\n  }\n\n  return {\n    task_type: 'execution_block',\n    title: `Bloque comercial: ${campaignActiva.name}`,\n    instruction: compactInstruction(`Objetivo del bloque: ${contactAsk()} contacto(s), ${followAsk()} follow-up(s) y ${proposalAsk()} propuesta(s) como m�ximo, seg�n c�mo venga el d�a.`),\n    expected_response: 'Progreso del bloque.',\n    priority: 'baja',\n  };\n}\n\nconst nextTask = buildNextTask();\nconst patternAlert = repeatedType === 'collect_contacts'\n  ? '\\n\\nOjo: ven�s cargando contactos seguido. En cuanto cierres esta, el pr�ximo paso deber�a ser outreach.'\n  : rate7 !== null && rate7 < 40\n    ? `\\n\\nDato �til: esta semana completaste ${done7}/${last7.length} misiones. Mejor achicar que acumular.`\n    : '';\n\nconst active = secretary_tasks.find(t =>\n  ['pendiente', 'en_progreso'].includes(t.status) &&\n  t.task_type !== 'commitment_check'\n);\n\nif (active) {\n  const minSince = Math.floor((now - new Date(active.reminded_at || active.created_at)) / 60000);\n  if (minSince < reminderMinutes) return [];\n\n  const attempts = Number(active.attempts || 0);\n  if (attempts >= maxAttempts) {\n    return [{\n      json: {\n        mode: 'auto_complete',\n        task_id: active.id,\n        message: `${warmIntro()} cierro esta misi�n por inercia y te dejo una m�s clara.\\n\\n${nextTask.title}\\n${nextTask.instruction}${patternAlert}\\n\\nRespond� con: hecho, despu�s, o mandame los datos.`,\n        ...nextTask,\n        task_date: today,\n        reminded_at: now.toISOString(),\n      }\n    }];\n  }\n\n  let msg = `${warmIntro()} sigue pendiente:\\n${active.title}\\n\\n${active.instruction}`;\n  if (attempts >= 1) {\n    if (active.task_type === 'collect_contacts') {\n      msg = `${warmIntro()} te la simplifico: pasame solo 1 contacto ahora.`;\n    } else if (active.task_type === 'follow_up') {\n      msg = `${warmIntro()} con una l�nea alcanza: �ya moviste ${active.title.replace('Seguimiento caliente: ', '').replace('Reactivar: ', '')}?`;\n    } else if (active.task_type === 'create_campaign') {\n      msg = `${warmIntro()} eleg� uno y listo: ${preferredSegments.join(', ') || 'hoteles, log�stica o retail'}.`;\n    } else {\n      msg = `${warmIntro()} versi�n corta: cerr� esta misi�n y seguimos.`;\n    }\n  }\n\n  return [{\n    json: {\n      mode: 'remind',\n      task_id: active.id,\n      attempts: attempts + 1,\n      reminded_at: now.toISOString(),\n      message: `${msg}${patternAlert}\\n\\nRespond�: hecho, despu�s, o mandame los datos.`,\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    mode: 'new_task',\n    ...nextTask,\n    task_date: today,\n    reminded_at: now.toISOString(),\n    message: `${warmIntro()}\\n\\n${nextTask.title}\\n${nextTask.instruction}${patternAlert}\\n\\nRespond�: hecho, despu�s, o mandame los datos.`,\n  }\n}];"
+      }
+    },
+    {
+      "id": "ad2e1eec-227a-452e-846b-be16d59d0417",
+      "name": "Es Nueva Mision Secretario?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        26208,
+        14848
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d5cc8461-1489-4aea-85c1-3047ffeefb64",
+              "leftValue": "={{ $json.mode }}",
+              "rightValue": "new_task",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "fb1aabae-8ecb-4144-84e0-3e50379b11ad",
+      "name": "Crear Mision Secretario",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        26448,
+        14752
+      ],
+      "parameters": {
+        "tableId": "secretary_tasks",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "task_date",
+              "fieldValue": "={{ $json.task_date }}"
+            },
+            {
+              "fieldId": "task_type",
+              "fieldValue": "={{ $json.task_type }}"
+            },
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $json.title }}"
+            },
+            {
+              "fieldId": "instruction",
+              "fieldValue": "={{ $json.instruction }}"
+            },
+            {
+              "fieldId": "expected_response",
+              "fieldValue": "={{ $json.expected_response }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "pendiente"
+            },
+            {
+              "fieldId": "priority",
+              "fieldValue": "={{ $json.priority }}"
+            },
+            {
+              "fieldId": "step_number",
+              "fieldValue": "={{ Number($json.step_number || 1) }}"
+            },
+            {
+              "fieldId": "due_at",
+              "fieldValue": "={{ $json.due_at }}"
+            },
+            {
+              "fieldId": "payload",
+              "fieldValue": "={{ $json.payload }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "id": "5899b3f4-60a1-4328-a109-0ff833b73882",
+      "name": "Actualizar Intento Mision",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        26448,
+        14960
+      ],
+      "parameters": {
+        "operation": "update",
+        "tableId": "secretary_tasks",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.task_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "attempts",
+              "fieldValue": "={{ Number($json.attempts || 1) }}"
+            },
+            {
+              "fieldId": "reminded_at",
+              "fieldValue": "={{ $json.reminded_at }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "pendiente"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "id": "95a782f6-8c85-4d1a-ae1b-a868210594e1",
+      "name": "Enviar Mision Secretario",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        26688,
+        14848
+      ],
+      "parameters": {
+        "chatId": "7512675688",
+        "text": "={{ $(\"Preparar Mision Secretario\").first().json.message }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        },
+        "appendAttribution": false
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "KwPKAA20aHtjCLeE",
+          "name": "Telegram account"
+        }
+      },
+      "webhookId": "d36bd43f-8698-481f-8085-4966588c5179"
+    },
+    {
+      "id": "c4e95d0e-8ae0-497b-8a66-9ec8a2c1ca69",
+      "name": "Guardar Salida Mision Secretario",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        26928,
+        14848
+      ],
+      "parameters": {
+        "tableId": "raw_messages",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "source",
+              "fieldValue": "telegram"
+            },
+            {
+              "fieldId": "direction",
+              "fieldValue": "outbound"
+            },
+            {
+              "fieldId": "kind",
+              "fieldValue": "system"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $(\"Preparar Mision Secretario\").first().json.message }}"
+            },
+            {
+              "fieldId": "metadata",
+              "fieldValue": "={{ { category: \"secretary_mission\", mode: $(\"Preparar Mision Secretario\").first().json.mode } }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "id": "42dd1538-4bd6-4549-ab04-1106f9c31cba",
+      "name": "Es Completar Mision Secretario?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        32440,
+        12688
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9f08af8a-9021-4138-884c-e80c7c2f7cb1",
+              "leftValue": "={{ $json.decision.action_type }}",
+              "rightValue": "complete_secretary_task",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ef4093b4-91dc-4e70-bb48-936e3c7f38f6",
+      "name": "Es Postergar Mision Secretario?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        32680,
+        12688
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "30e01fb9-4367-45f1-bbf0-f3c68d9c903b",
+              "leftValue": "={{ $json.decision.action_type }}",
+              "rightValue": "postpone_secretary_task",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a7dadebd-45c1-441d-9e71-ca635166e5ea",
+      "name": "Es Cambiar Modo Secretario?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        32920,
+        12688
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "740e08cf-3fa2-423b-98b2-a5c595d72ef6",
+              "leftValue": "={{ $json.decision.action_type }}",
+              "rightValue": "set_secretary_mode",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "7eb51d1d-923b-47e1-ba27-14adf2e90b79",
+      "name": "Completar Mision Secretario",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        32680,
+        12928
+      ],
+      "parameters": {
+        "operation": "update",
+        "tableId": "secretary_tasks",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "pendiente"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "hecha"
+            },
+            {
+              "fieldId": "completed_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "id": "fcc33d95-b2d9-43ee-b411-56d5c7fd2adb",
+      "name": "Postergar Mision Secretario",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        32920,
+        12928
+      ],
+      "parameters": {
+        "operation": "update",
+        "tableId": "secretary_tasks",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "pendiente"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "postergada"
+            },
+            {
+              "fieldId": "reminded_at",
+              "fieldValue": "={{ new Date(Date.now() + 60 * 60 * 1000).toISOString() }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "id": "44b3052d-504b-46b5-96b9-eade2575e9f8",
+      "name": "Cambiar Modo Secretario",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        33160,
+        12928
+      ],
+      "parameters": {
+        "operation": "update",
+        "tableId": "secretary_preferences",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "singleton_key",
+              "condition": "eq",
+              "keyValue": "ortu"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "mode",
+              "fieldValue": "={{ [\"liviano\",\"normal\",\"sprint\",\"pausa\"].includes(String($json.decision.payload.mode || \"\").toLowerCase().trim()) ? String($json.decision.payload.mode).toLowerCase().trim() : \"normal\" }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "id": "e7f8a9b0-c1d2-4e3f-9a0b-c1d2e3f4a5b6",
+      "name": "Es Auto Complete Secretario?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        26448,
+        15200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "auto-complete-cond-001",
+              "leftValue": "={{ $json.mode }}",
+              "rightValue": "auto_complete",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f8a9b0c1-d2e3-4f5a-0b1c-d2e3f4a5b6c7",
+      "name": "Cancelar Mision Anterior",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        26688,
+        15200
+      ],
+      "parameters": {
+        "operation": "update",
+        "tableId": "secretary_tasks",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.task_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "cancelada"
+            },
+            {
+              "fieldId": "completed_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "id": "a9b0c1d2-e3f4-5a6b-1c2d-e3f4a5b6c7d8",
+      "name": "Crear Mision Auto",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        26928,
+        15200
+      ],
+      "parameters": {
+        "tableId": "secretary_tasks",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "task_date",
+              "fieldValue": "={{ $(\"Preparar Mision Secretario\").first().json.task_date }}"
+            },
+            {
+              "fieldId": "task_type",
+              "fieldValue": "={{ $(\"Preparar Mision Secretario\").first().json.task_type }}"
+            },
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $(\"Preparar Mision Secretario\").first().json.title }}"
+            },
+            {
+              "fieldId": "instruction",
+              "fieldValue": "={{ $(\"Preparar Mision Secretario\").first().json.instruction }}"
+            },
+            {
+              "fieldId": "expected_response",
+              "fieldValue": "={{ $(\"Preparar Mision Secretario\").first().json.expected_response }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "pendiente"
+            },
+            {
+              "fieldId": "priority",
+              "fieldValue": "={{ $(\"Preparar Mision Secretario\").first().json.priority }}"
+            },
+            {
+              "fieldId": "reminded_at",
+              "fieldValue": "={{ $(\"Preparar Mision Secretario\").first().json.reminded_at }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "id": "b0c1d2e3-f4a5-6b7c-8d9e-f0a1b2c3d4e5",
+      "name": "Hay Compromiso Manana?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        31960,
+        13168
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "commitment-check-cond-001",
+              "leftValue": "={{ $('Parsear Decision').first().json.decision.payload.tomorrow_focus }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d1e2f3a4-b5c6-7d8e-9f0a-b1c2d3e4f5a6",
+      "name": "Es Perdida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        28464,
+        12320
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "perdida-cond-001",
+              "leftValue": "={{ $json.decision.payload.stage }}",
+              "rightValue": "perdido",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e2f3a4b5-c6d7-8e9f-0a1b-c2d3e4f5a6b7",
+      "name": "Preguntar Causa Perdida",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        28704,
+        12320
+      ],
+      "webhookId": "preguntar-causa-perdida-001",
+      "parameters": {
+        "chatId": "7512675688",
+        "text": "={{ '¿Por qué se perdió ' + ($json.decision.payload.name || $json.decision.payload.company || 'este prospect') + '? Respondé: precio / timing / competencia / fit / sin respuesta / otro.' }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        },
+        "appendAttribution": false
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "KwPKAA20aHtjCLeE",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "id": "f3a4b5c6-d7e8-9f0a-1b2c-d3e4f5a6b7c8",
+      "name": "Es Registrar Causa Perdida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        33160,
+        12688
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "loss-reason-cond-001",
+              "leftValue": "={{ $json.decision.action_type }}",
+              "rightValue": "log_loss_reason",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a4b5c6d7-e8f9-0a1b-2c3d-e4f5a6b7c8d9",
+      "name": "Registrar Causa Perdida",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        33400,
+        12928
+      ],
+      "parameters": {
+        "operation": "update",
+        "tableId": "prospects",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.decision.prospect_id || $json.decision.payload.prospect_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "loss_reason",
+              "fieldValue": "={{ $json.decision.payload.reason || $json.mensaje }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "id": "b5c6d7e8-f9a0-1b2c-3d4e-f5a6b7c8d9e0",
+      "name": "Es Ver Pipeline?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        33400,
+        12688
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "pipeline-cond-001",
+              "leftValue": "={{ $json.decision.action_type }}",
+              "rightValue": "show_pipeline",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c6d7e8f9-a0b1-2c3d-4e5f-a6b7c8d9e0f1",
+      "name": "Generar Pipeline",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        33640,
+        12928
+      ],
+      "parameters": {
+        "jsCode": "const prospects = $('Preparar Prompt AI').first().json.prospects_context ?? [];\nconst chat_id = $('Preparar Prompt AI').first().json.chat_id || '7512675688';\nconst now = new Date();\n\nfunction getTemp(p) {\n  const days = Math.floor((now - new Date(p.last_contact_at || p.updated_at || p.created_at)) / (1000*60*60*24));\n  if (['propuesta','cliente','reunion'].includes(p.stage) || days < 2) return '🔥';\n  if (days < 7) return '🟡';\n  return '🔵';\n}\n\nconst activos = prospects.filter(p => p.stage !== 'perdido');\nconst perdidos = prospects.filter(p => p.stage === 'perdido');\n\nconst byStage = {\n  propuesta: activos.filter(p => p.stage === 'propuesta'),\n  reunion: activos.filter(p => p.stage === 'reunion'),\n  contactado: activos.filter(p => p.stage === 'contactado'),\n  frio: activos.filter(p => p.stage === 'frio'),\n  cliente: activos.filter(p => p.stage === 'cliente'),\n};\n\nconst hot = activos.filter(p => getTemp(p) === '🔥').length;\nconst warm = activos.filter(p => getTemp(p) === '🟡').length;\nconst propuestaVal = byStage.propuesta.reduce((s, p) => s + (Number(p.estimated_value) || 0), 0);\nconst clienteVal = byStage.cliente.reduce((s, p) => s + (Number(p.estimated_value) || 0), 0);\nconst fmtARS = v => v > 0 ? '\n\nlet msg = `📊 Pipeline\\n\\n`;\nmsg += `🔥 ${hot} calientes  🟡 ${warm} tibios  total ${activos.length} activos\\n`;\nif (propuestaVal > 0 || clienteVal > 0) msg += `💰 En propuesta: ${fmtARS(propuestaVal)} · Clientes: ${fmtARS(clienteVal)}\\n`;\n\nif (byStage.propuesta.length > 0) {\n  msg += `\\nEn propuesta (${byStage.propuesta.length}):\\n`;\n  byStage.propuesta.forEach(p => {\n    const days = Math.floor((now - new Date(p.last_contact_at || p.updated_at || p.created_at)) / (1000*60*60*24));\n    msg += `• ${getTemp(p)} ${p.name}${p.company ? ' / ' + p.company : ''} — ${days}d\\n`;\n  });\n}\n\nif (byStage.reunion.length > 0) {\n  msg += `\\nReunión agendada (${byStage.reunion.length}):\\n`;\n  byStage.reunion.forEach(p => {\n    msg += `• ${getTemp(p)} ${p.name}${p.company ? ' / ' + p.company : ''}\\n`;\n  });\n}\n\nif (byStage.contactado.length > 0) {\n  msg += `\\nContactados (${byStage.contactado.length}):\\n`;\n  byStage.contactado.slice(0, 10).forEach(p => {\n    const days = Math.floor((now - new Date(p.last_contact_at || p.updated_at || p.created_at)) / (1000*60*60*24));\n    msg += `• ${getTemp(p)} ${p.name}${p.company ? ' / ' + p.company : ''} — ${days}d\\n`;\n  });\n  if (byStage.contactado.length > 10) msg += `... y ${byStage.contactado.length - 10} más\\n`;\n}\n\nif (byStage.frio.length > 0) msg += `\\nFríos: ${byStage.frio.length} esperando activación\\n`;\nif (byStage.cliente.length > 0) msg += `\\nClientes activos: ${byStage.cliente.length}\\n`;\n\nconst perdidosMes = perdidos.filter(p => {\n  return (now - new Date(p.updated_at || p.created_at)) / (1000*60*60*24) <= 30;\n});\nif (perdidosMes.length > 0) {\n  msg += `\\nPerdidos este mes (${perdidosMes.length}):\\n`;\n  perdidosMes.forEach(p => {\n    msg += `• ${p.name} — ${p.loss_reason || 'sin causa registrada'}\\n`;\n  });\n}\n\nreturn [{ json: { pipeline_text: msg, chat_id } }]; + v.toLocaleString('es-AR') : '–';\n\nlet msg = `📊 Pipeline\\n\\n`;\nmsg += `🔥 ${hot} calientes  🟡 ${warm} tibios  total ${activos.length} activos\\n`;\n\nif (byStage.propuesta.length > 0) {\n  msg += `\\nEn propuesta (${byStage.propuesta.length}):\\n`;\n  byStage.propuesta.forEach(p => {\n    const days = Math.floor((now - new Date(p.last_contact_at || p.updated_at || p.created_at)) / (1000*60*60*24));\n    msg += `• ${getTemp(p)} ${p.name}${p.company ? ' / ' + p.company : ''} — ${days}d\\n`;\n  });\n}\n\nif (byStage.reunion.length > 0) {\n  msg += `\\nReunión agendada (${byStage.reunion.length}):\\n`;\n  byStage.reunion.forEach(p => {\n    msg += `• ${getTemp(p)} ${p.name}${p.company ? ' / ' + p.company : ''}\\n`;\n  });\n}\n\nif (byStage.contactado.length > 0) {\n  msg += `\\nContactados (${byStage.contactado.length}):\\n`;\n  byStage.contactado.slice(0, 10).forEach(p => {\n    const days = Math.floor((now - new Date(p.last_contact_at || p.updated_at || p.created_at)) / (1000*60*60*24));\n    msg += `• ${getTemp(p)} ${p.name}${p.company ? ' / ' + p.company : ''} — ${days}d\\n`;\n  });\n  if (byStage.contactado.length > 10) msg += `... y ${byStage.contactado.length - 10} más\\n`;\n}\n\nif (byStage.frio.length > 0) msg += `\\nFríos: ${byStage.frio.length} esperando activación\\n`;\nif (byStage.cliente.length > 0) msg += `\\nClientes activos: ${byStage.cliente.length}\\n`;\n\nconst perdidosMes = perdidos.filter(p => {\n  return (now - new Date(p.updated_at || p.created_at)) / (1000*60*60*24) <= 30;\n});\nif (perdidosMes.length > 0) {\n  msg += `\\nPerdidos este mes (${perdidosMes.length}):\\n`;\n  perdidosMes.forEach(p => {\n    msg += `• ${p.name} — ${p.loss_reason || 'sin causa registrada'}\\n`;\n  });\n}\n\nreturn [{ json: { pipeline_text: msg, chat_id } }];"
+      }
+    },
+    {
+      "id": "d7e8f9a0-b1c2-3d4e-5f6a-b7c8d9e0f1a2",
+      "name": "Enviar Pipeline",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        33880,
+        12928
+      ],
+      "webhookId": "enviar-pipeline-001",
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.pipeline_text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        },
+        "appendAttribution": false
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "KwPKAA20aHtjCLeE",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "id": "e8f9a0b1-c2d3-4e5f-6a7b-c8d9e0f1a2b3",
+      "name": "Pipeline Miercoles Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        25008,
+        16000
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 14 * * 3"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "f9a0b1c2-d3e4-5f6a-7b8c-d9e0f1a2b3c4",
+      "name": "Enviar Pregunta Pipeline",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        25248,
+        16000
+      ],
+      "webhookId": "enviar-pregunta-pipeline-001",
+      "parameters": {
+        "chatId": "7512675688",
+        "text": "¿Querés ver cómo viene la semana? Respondé /pipeline para el resumen del pipeline.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        },
+        "appendAttribution": false
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "KwPKAA20aHtjCLeE",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "id": "c1d2e3f4-a5b6-7c8d-9e0f-a1b2c3d4e5f6",
+      "name": "Crear Compromiso Manana",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        32200,
+        13168
+      ],
+      "parameters": {
+        "tableId": "secretary_tasks",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "task_type",
+              "fieldValue": "commitment_check"
+            },
+            {
+              "fieldId": "title",
+              "fieldValue": "Verificar compromiso de ayer"
+            },
+            {
+              "fieldId": "instruction",
+              "fieldValue": "={{ $('Parsear Decision').first().json.decision.payload.tomorrow_focus }}"
+            },
+            {
+              "fieldId": "task_date",
+              "fieldValue": "={{ new Date(Date.now() + 24*60*60*1000).toISOString().slice(0, 10) }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "pendiente"
+            },
+            {
+              "fieldId": "priority",
+              "fieldValue": "alta"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "id": "aa1b2c3d-e4f5-6a7b-8c9d-e0f1a2b3c4d5",
+      "name": "Es Nueva Propuesta?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        28224,
+        12800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "nueva-propuesta-cond-001",
+              "leftValue": "={{ $json.decision.payload.stage }}",
+              "rightValue": "propuesta",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "bb2c3d4e-f5a6-7b8c-9d0e-f1a2b3c4d5e6",
+      "name": "Crear Tarea Seguimiento Propuesta",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        28464,
+        12800
+      ],
+      "parameters": {
+        "tableId": "secretary_tasks",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "task_type",
+              "fieldValue": "follow_up"
+            },
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ '🔥 Follow-up propuesta: ' + ($json.decision.payload.name || $json.decision.payload.company || 'prospect') }}"
+            },
+            {
+              "fieldId": "instruction",
+              "fieldValue": "={{ 'Mandaste propuesta a ' + ($json.decision.payload.name || $json.decision.payload.company || 'prospect') + '. Pasaron 3 días — ¿hubo respuesta? Si no contestó, seguimiento ahora.' }}"
+            },
+            {
+              "fieldId": "expected_response",
+              "fieldValue": "Resultado del seguimiento."
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "pendiente"
+            },
+            {
+              "fieldId": "priority",
+              "fieldValue": "alta"
+            },
+            {
+              "fieldId": "task_date",
+              "fieldValue": "={{ new Date(Date.now() + 3*24*60*60*1000).toISOString().slice(0, 10) }}"
+            },
+            {
+              "fieldId": "due_at",
+              "fieldValue": "={{ new Date(Date.now() + 3*24*60*60*1000).toISOString() }}"
+            },
+            {
+              "fieldId": "reminded_at",
+              "fieldValue": "={{ new Date(Date.now() + 3*24*60*60*1000).toISOString() }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "1zMqVuznHJknlJRo",
+          "name": "Supabase account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Telegram Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "prueba-1-n8n.xbgh9n.easypanel.host",
+            "content-length": "315",
+            "accept-encoding": "gzip, deflate",
+            "content-type": "application/json",
+            "x-forwarded-for": "91.108.5.3",
+            "x-forwarded-host": "prueba-1-n8n.xbgh9n.easypanel.host",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "8b7844b85f51",
+            "x-real-ip": "91.108.5.3"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "update_id": 627173816,
+            "message": {
+              "message_id": 36,
+              "from": {
+                "id": 7512675688,
+                "is_bot": false,
+                "first_name": "Ortu González",
+                "username": "ortugonzalez",
+                "language_code": "es"
+              },
+              "chat": {
+                "id": 7512675688,
+                "first_name": "Ortu González",
+                "username": "ortugonzalez",
+                "type": "private"
+              },
+              "date": 1776588394,
+              "text": "Crealo ahora"
+            }
+          },
+          "webhookUrl": "https://prueba-1-n8n.xbgh9n.easypanel.host/webhook/wis-crm-agent-incoming",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Telegram Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Incoming",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Incoming": {
+      "main": [
+        [
+          {
+            "node": "Validar Chat ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Chat ID": {
+      "main": [
+        [
+          {
+            "node": "Tiene Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tiene Audio": {
+      "main": [
+        [
+          {
+            "node": "Telegram Get File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto Listo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Get File": {
+      "main": [
+        [
+          {
+            "node": "Construir URL Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construir URL Audio": {
+      "main": [
+        [
+          {
+            "node": "Transcribir Audio Gateway",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribir Audio Gateway": {
+      "main": [
+        [
+          {
+            "node": "Audio Listo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audio Listo": {
+      "main": [
+        [
+          {
+            "node": "Mensaje Unificado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto Listo": {
+      "main": [
+        [
+          {
+            "node": "Mensaje Unificado",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Mensaje Unificado": {
+      "main": [
+        [
+          {
+            "node": "Guardar Entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar Entrada": {
+      "main": [
+        [
+          {
+            "node": "Traer Prospects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Prospects": {
+      "main": [
+        [
+          {
+            "node": "Preparar Prompt AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Decision": {
+      "main": [
+        [
+          {
+            "node": "Es Crear Prospect?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Crear Prospect?": {
+      "main": [
+        [
+          {
+            "node": "Crear Prospect",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es Actualizar Etapa?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Prospect": {
+      "main": [
+        [
+          {
+            "node": "Enviar Respuesta Crear Prospect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Respuesta Crear Prospect": {
+      "main": [
+        [
+          {
+            "node": "Guardar Salida Crear Prospect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Actualizar Etapa?": {
+      "main": [
+        [
+          {
+            "node": "Actualizar Etapa Prospect",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es Agregar Nota?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actualizar Etapa Prospect": {
+      "main": [
+        [
+          {
+            "node": "Enviar Respuesta Actualizar Etapa",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Es Perdida?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Es Nueva Propuesta?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Respuesta Actualizar Etapa": {
+      "main": [
+        [
+          {
+            "node": "Guardar Salida Actualizar Etapa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Agregar Nota?": {
+      "main": [
+        [
+          {
+            "node": "Crear Activity Nota",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es Crear Follow Up?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Activity Nota": {
+      "main": [
+        [
+          {
+            "node": "Enviar Respuesta Agregar Nota",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Respuesta Agregar Nota": {
+      "main": [
+        [
+          {
+            "node": "Guardar Salida Agregar Nota",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Crear Follow Up?": {
+      "main": [
+        [
+          {
+            "node": "Crear Follow Up",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es Crear Reminder?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Follow Up": {
+      "main": [
+        [
+          {
+            "node": "Enviar Respuesta Follow Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Respuesta Follow Up": {
+      "main": [
+        [
+          {
+            "node": "Guardar Salida Follow Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Crear Reminder?": {
+      "main": [
+        [
+          {
+            "node": "Crear Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es Crear Objetivo Mensual?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Reminder": {
+      "main": [
+        [
+          {
+            "node": "Enviar Respuesta Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Respuesta Reminder": {
+      "main": [
+        [
+          {
+            "node": "Guardar Salida Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Respuesta Directa": {
+      "main": [
+        [
+          {
+            "node": "Guardar Salida Directa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Traer Follow Ups Pendientes",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Traer Reminders Pendientes",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Traer Prospects Daily",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Traer Objetivos Mensuales",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Traer Tareas de Objetivos",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Traer Actividad Laboral",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Traer Planes Diarios",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Traer Score Diario",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Traer Campanas Comerciales",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Traer Playbooks Comerciales",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Follow Ups Pendientes": {
+      "main": [
+        [
+          {
+            "node": "Tag Follow Ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Reminders Pendientes": {
+      "main": [
+        [
+          {
+            "node": "Tag Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Prospects Daily": {
+      "main": [
+        [
+          {
+            "node": "Tag Prospects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Follow Ups": {
+      "main": [
+        [
+          {
+            "node": "Merge Daily Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Reminders": {
+      "main": [
+        [
+          {
+            "node": "Merge Daily Context",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Tag Prospects": {
+      "main": [
+        [
+          {
+            "node": "Merge Daily Context",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge Daily Context": {
+      "main": [
+        [
+          {
+            "node": "Preparar Contexto Diario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Recordatorio Diario": {
+      "main": [
+        [
+          {
+            "node": "Guardar Salida Daily",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Prompt AI": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Contexto Diario": {
+      "main": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent1": {
+      "main": [
+        [
+          {
+            "node": "Guardar Plan Diario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parsear Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Objetivos Mensuales": {
+      "main": [
+        [
+          {
+            "node": "Tag Objetivos Mensuales",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Tareas de Objetivos": {
+      "main": [
+        [
+          {
+            "node": "Tag Tareas Objetivos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Actividad Laboral": {
+      "main": [
+        [
+          {
+            "node": "Tag Actividad Laboral",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Planes Diarios": {
+      "main": [
+        [
+          {
+            "node": "Tag Planes Diarios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Score Diario": {
+      "main": [
+        [
+          {
+            "node": "Tag Score Diario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Objetivos Mensuales": {
+      "main": [
+        [
+          {
+            "node": "Merge Daily Context",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Tag Tareas Objetivos": {
+      "main": [
+        [
+          {
+            "node": "Merge Daily Context",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "Tag Actividad Laboral": {
+      "main": [
+        [
+          {
+            "node": "Merge Daily Context",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "Tag Planes Diarios": {
+      "main": [
+        [
+          {
+            "node": "Merge Daily Context",
+            "type": "main",
+            "index": 6
+          }
+        ]
+      ]
+    },
+    "Tag Score Diario": {
+      "main": [
+        [
+          {
+            "node": "Merge Daily Context",
+            "type": "main",
+            "index": 7
+          }
+        ]
+      ]
+    },
+    "Guardar Plan Diario": {
+      "main": [
+        [
+          {
+            "node": "Enviar Recordatorio Diario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Crear Objetivo Mensual?": {
+      "main": [
+        [
+          {
+            "node": "Crear Objetivo Mensual",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es Crear Tarea Objetivo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Objetivo Mensual": {
+      "main": [
+        [
+          {
+            "node": "Enviar Respuesta Directa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Crear Tarea Objetivo?": {
+      "main": [
+        [
+          {
+            "node": "Crear Tarea Objetivo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es Registrar Actividad Laboral?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Tarea Objetivo": {
+      "main": [
+        [
+          {
+            "node": "Enviar Respuesta Directa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Registrar Actividad Laboral?": {
+      "main": [
+        [
+          {
+            "node": "Registrar Actividad Laboral",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es Cierre Diario?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Actividad Laboral": {
+      "main": [
+        [
+          {
+            "node": "Enviar Respuesta Directa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cierre Diario Trigger": {
+      "main": [
+        [
+          {
+            "node": "Preguntar Cierre Diario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Cierre Diario?": {
+      "main": [
+        [
+          {
+            "node": "Guardar Cierre Diario",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es Crear Campana Comercial?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar Cierre Diario": {
+      "main": [
+        [
+          {
+            "node": "Guardar Score Diario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar Score Diario": {
+      "main": [
+        [
+          {
+            "node": "Enviar Respuesta Directa",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Hay Compromiso Manana?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hay Compromiso Manana?": {
+      "main": [
+        [
+          {
+            "node": "Crear Compromiso Manana",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Traer Campanas Comerciales": {
+      "main": [
+        [
+          {
+            "node": "Tag Campanas Comerciales",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Campanas Comerciales": {
+      "main": [
+        [
+          {
+            "node": "Merge Daily Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Playbooks Comerciales": {
+      "main": [
+        [
+          {
+            "node": "Tag Playbooks Comerciales",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Playbooks Comerciales": {
+      "main": [
+        [
+          {
+            "node": "Merge Daily Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Crear Campana Comercial?": {
+      "main": [
+        [
+          {
+            "node": "Crear Campana Comercial",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es Crear Playbook?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Campana Comercial": {
+      "main": [
+        [
+          {
+            "node": "Enviar Respuesta Directa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Crear Playbook?": {
+      "main": [
+        [
+          {
+            "node": "Crear Playbook Comercial",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es Completar Mision Secretario?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Playbook Comercial": {
+      "main": [
+        [
+          {
+            "node": "Enviar Respuesta Directa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Secretario Horario Trigger": {
+      "main": [
+        [
+          {
+            "node": "Traer Misiones Secretario",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Traer Prospects Secretario",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Traer Campanas Secretario",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Traer Preferencias Secretario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Misiones Secretario": {
+      "main": [
+        [
+          {
+            "node": "Tag Misiones Secretario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Prospects Secretario": {
+      "main": [
+        [
+          {
+            "node": "Tag Prospects Secretario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Campanas Secretario": {
+      "main": [
+        [
+          {
+            "node": "Tag Campanas Secretario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Preferencias Secretario": {
+      "main": [
+        [
+          {
+            "node": "Tag Preferencias Secretario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Misiones Secretario": {
+      "main": [
+        [
+          {
+            "node": "Merge Secretario Contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Prospects Secretario": {
+      "main": [
+        [
+          {
+            "node": "Merge Secretario Contexto",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Tag Campanas Secretario": {
+      "main": [
+        [
+          {
+            "node": "Merge Secretario Contexto",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Tag Preferencias Secretario": {
+      "main": [
+        [
+          {
+            "node": "Merge Secretario Contexto",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Merge Secretario Contexto": {
+      "main": [
+        [
+          {
+            "node": "Preparar Mision Secretario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Mision Secretario": {
+      "main": [
+        [
+          {
+            "node": "Es Nueva Mision Secretario?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Nueva Mision Secretario?": {
+      "main": [
+        [
+          {
+            "node": "Crear Mision Secretario",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es Auto Complete Secretario?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Auto Complete Secretario?": {
+      "main": [
+        [
+          {
+            "node": "Cancelar Mision Anterior",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Actualizar Intento Mision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancelar Mision Anterior": {
+      "main": [
+        [
+          {
+            "node": "Crear Mision Auto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Mision Auto": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mision Secretario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Mision Secretario": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mision Secretario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actualizar Intento Mision": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mision Secretario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Mision Secretario": {
+      "main": [
+        [
+          {
+            "node": "Guardar Salida Mision Secretario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Completar Mision Secretario?": {
+      "main": [
+        [
+          {
+            "node": "Completar Mision Secretario",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es Postergar Mision Secretario?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Completar Mision Secretario": {
+      "main": [
+        [
+          {
+            "node": "Enviar Respuesta Directa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Postergar Mision Secretario?": {
+      "main": [
+        [
+          {
+            "node": "Postergar Mision Secretario",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es Cambiar Modo Secretario?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postergar Mision Secretario": {
+      "main": [
+        [
+          {
+            "node": "Enviar Respuesta Directa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Cambiar Modo Secretario?": {
+      "main": [
+        [
+          {
+            "node": "Cambiar Modo Secretario",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es Registrar Causa Perdida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cambiar Modo Secretario": {
+      "main": [
+        [
+          {
+            "node": "Enviar Respuesta Directa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Perdida?": {
+      "main": [
+        [
+          {
+            "node": "Preguntar Causa Perdida",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Es Registrar Causa Perdida?": {
+      "main": [
+        [
+          {
+            "node": "Registrar Causa Perdida",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es Ver Pipeline?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Causa Perdida": {
+      "main": [
+        [
+          {
+            "node": "Enviar Respuesta Directa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Ver Pipeline?": {
+      "main": [
+        [
+          {
+            "node": "Generar Pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Respuesta Directa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar Pipeline": {
+      "main": [
+        [
+          {
+            "node": "Enviar Pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pipeline Miercoles Trigger": {
+      "main": [
+        [
+          {
+            "node": "Enviar Pregunta Pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Nueva Propuesta?": {
+      "main": [
+        [
+          {
+            "node": "Crear Tarea Seguimiento Propuesta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "680dd21b-9441-4867-8c79-8b6414e938da",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "bbc7b7105e6ca173826d467f2de909e17baa4ec6f4f56223235ec02af4bdc062"
+  },
+  "id": "tXHeocEKkIzpLpq8",
+  "tags": []
+}

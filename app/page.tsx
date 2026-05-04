@@ -11,6 +11,7 @@ import RemindersPanel from '@/app/components/RemindersPanel'
 import InboxPanel from '@/app/components/InboxPanel'
 import GoalsPanel from '@/app/components/GoalsPanel'
 import CommercialPanel from '@/app/components/CommercialPanel'
+import SecretaryTasksPanel from '@/app/components/SecretaryTasksPanel'
 import {
   Prospect,
   Stage,
@@ -32,6 +33,10 @@ import {
   CommercialPlaybook,
   MessageTemplate,
   CommercialEngine,
+  SecretaryTask,
+  SecretaryTaskStatus,
+  SecretaryOverview,
+  SecretaryPreferences,
 } from '@/app/lib/types'
 
 export default function Home() {
@@ -50,6 +55,9 @@ export default function Home() {
   const [playbooks, setPlaybooks] = useState<CommercialPlaybook[]>([])
   const [templates, setTemplates] = useState<MessageTemplate[]>([])
   const [commercialEngine, setCommercialEngine] = useState<CommercialEngine | null>(null)
+  const [secretaryTasks, setSecretaryTasks] = useState<SecretaryTask[]>([])
+  const [secretaryPreferences, setSecretaryPreferences] = useState<SecretaryPreferences | null>(null)
+  const [secretaryOverview, setSecretaryOverview] = useState<SecretaryOverview | null>(null)
   const [nowTimestamp, setNowTimestamp] = useState(() => Date.now())
   const [loading, setLoading] = useState(true)
   const [showNewForm, setShowNewForm] = useState(false)
@@ -78,6 +86,9 @@ export default function Home() {
         playbooksRes,
         templatesRes,
         commercialEngineRes,
+        secretaryTasksRes,
+        secretaryPreferencesRes,
+        secretaryOverviewRes,
       ] = await Promise.all([
         fetch('/api/prospects'),
         fetch('/api/followups'),
@@ -94,6 +105,9 @@ export default function Home() {
         fetch('/api/playbooks'),
         fetch('/api/templates'),
         fetch('/api/commercial-engine'),
+        fetch('/api/secretary-tasks'),
+        fetch('/api/secretary-preferences'),
+        fetch('/api/secretary-overview'),
       ])
 
       const [
@@ -112,6 +126,9 @@ export default function Home() {
         playbooksData,
         templatesData,
         commercialEngineData,
+        secretaryTasksData,
+        secretaryPreferencesData,
+        secretaryOverviewData,
       ] = await Promise.all([
         prospectsRes.json(),
         followUpsRes.json(),
@@ -128,6 +145,9 @@ export default function Home() {
         playbooksRes.json(),
         templatesRes.json(),
         commercialEngineRes.json(),
+        secretaryTasksRes.json(),
+        secretaryPreferencesRes.json(),
+        secretaryOverviewRes.json(),
       ])
 
       setProspects(Array.isArray(prospectsData) ? prospectsData : [])
@@ -145,6 +165,9 @@ export default function Home() {
       setPlaybooks(Array.isArray(playbooksData) ? playbooksData : [])
       setTemplates(Array.isArray(templatesData) ? templatesData : [])
       setCommercialEngine(commercialEngineData && !commercialEngineData.error ? commercialEngineData : null)
+      setSecretaryTasks(Array.isArray(secretaryTasksData) ? secretaryTasksData : [])
+      setSecretaryPreferences(secretaryPreferencesData && !secretaryPreferencesData.error ? secretaryPreferencesData : null)
+      setSecretaryOverview(secretaryOverviewData && !secretaryOverviewData.error ? secretaryOverviewData : null)
       refreshBoard()
     } catch {
       setProspects([])
@@ -162,6 +185,9 @@ export default function Home() {
       setPlaybooks([])
       setTemplates([])
       setCommercialEngine(null)
+      setSecretaryTasks([])
+      setSecretaryPreferences(null)
+      setSecretaryOverview(null)
     } finally {
       setLoading(false)
     }
@@ -358,6 +384,27 @@ export default function Home() {
     await fetchAll()
   }
 
+  const handleSecretaryTaskStatus = async (task: SecretaryTask, status: SecretaryTaskStatus) => {
+    await fetch(`/api/secretary-tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status,
+        ...(status === 'hecha' ? { completed_at: new Date().toISOString() } : {}),
+      }),
+    })
+    await fetchAll()
+  }
+
+  const handleSecretaryPreferencesUpdate = async (payload: Record<string, unknown>) => {
+    await fetch('/api/secretary-preferences', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    await fetchAll()
+  }
+
   const openProspect = (prospectId: string) => {
     setSelectedProspectId(prospectId)
   }
@@ -460,7 +507,24 @@ export default function Home() {
 
             {activeTab === 'inbox' && (
               <div className="h-full overflow-y-auto">
-                <InboxPanel messages={messages} activities={activities} onOpenProspect={openProspect} />
+                <InboxPanel
+                  messages={messages}
+                  activities={activities}
+                  onOpenProspect={openProspect}
+                  onMessageSent={fetchAll}
+                />
+              </div>
+            )}
+
+            {activeTab === 'tareas' && (
+              <div className="h-full overflow-y-auto">
+                <SecretaryTasksPanel
+                  tasks={secretaryTasks}
+                  preferences={secretaryPreferences}
+                  overview={secretaryOverview}
+                  onStatusChange={handleSecretaryTaskStatus}
+                  onPreferencesSave={handleSecretaryPreferencesUpdate}
+                />
               </div>
             )}
           </>

@@ -157,7 +157,8 @@ async function handleTranscription(req, res, next) {
 app.post('/', handleTranscription)
 app.post('/transcribe', handleTranscription)
 
-app.use((error, _req, res, _next) => {
+app.use((error, _req, res, next) => {
+  void next
   const status = error?.status || 500
   res.status(status).json({
     error: true,
