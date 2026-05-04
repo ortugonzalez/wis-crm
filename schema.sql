@@ -3,6 +3,18 @@
 
 create extension if not exists pgcrypto;
 
+drop view if exists crm_daily_brief cascade;
+drop view if exists crm_work_score_today cascade;
+drop view if exists crm_goal_pacing cascade;
+drop view if exists crm_activity_ranking_30d cascade;
+drop view if exists crm_abandoned_prospects cascade;
+drop view if exists crm_upcoming_birthdays cascade;
+drop view if exists crm_pipeline_future_signal cascade;
+drop view if exists crm_commercial_forecast cascade;
+drop view if exists crm_campaign_dashboard cascade;
+drop view if exists crm_secretary_open_task cascade;
+drop view if exists crm_secretary_today cascade;
+
 create or replace function update_updated_at()
 returns trigger as $$
 begin

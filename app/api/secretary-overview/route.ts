@@ -75,7 +75,11 @@ export async function GET() {
       name: prospect.name,
       company: prospect.company,
       birthday: prospect.birthday as string,
-      nextBirthday: new Date(new Date().getFullYear(), new Date(prospect.birthday as string).getMonth(), new Date(prospect.birthday as string).getDate()).getTime(),
+      nextBirthday: new Date(
+        new Date().getFullYear(),
+        new Date(prospect.birthday as string).getMonth(),
+        new Date(prospect.birthday as string).getDate()
+      ).getTime(),
     }))
     .filter((prospect) => prospect.nextBirthday >= Date.now() && prospect.nextBirthday <= Date.now() + 14 * 24 * 60 * 60 * 1000)
     .sort((a, b) => a.nextBirthday - b.nextBirthday)
