@@ -2,7 +2,7 @@
 
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { Prospect, CHANNELS } from '@/app/lib/types'
+import { Prospect, CHANNELS, PROSPECT_DECISIONS, PROSPECT_TEMPERATURES } from '@/app/lib/types'
 import { formatDateTime } from '@/app/lib/dates'
 
 interface Props {
@@ -26,6 +26,8 @@ export default function ProspectCard({ prospect, onClick }: Props) {
   })
 
   const channel = CHANNELS.find((entry) => entry.id === prospect.channel)
+  const temperature = PROSPECT_TEMPERATURES.find((entry) => entry.id === prospect.temperature)
+  const decision = PROSPECT_DECISIONS.find((entry) => entry.id === prospect.decision_status)
 
   const style = {
     transform: CSS.Translate.toString(transform),
@@ -55,10 +57,35 @@ export default function ProspectCard({ prospect, onClick }: Props) {
         {prospect.name}
       </div>
 
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        {temperature && (
+          <span
+            className="rounded-full px-2 py-1 text-[10px] font-semibold"
+            style={{ backgroundColor: temperature.bg, color: temperature.color }}
+          >
+            {temperature.label}
+          </span>
+        )}
+        {decision && (
+          <span
+            className="rounded-full px-2 py-1 text-[10px] font-semibold"
+            style={{ backgroundColor: decision.bg, color: decision.color }}
+          >
+            {decision.label}
+          </span>
+        )}
+      </div>
+
       {prospect.next_action_at && (
         <div className="mb-3 rounded-lg border border-[#1f1f1f] bg-[#121212] px-2.5 py-2">
           <div className="text-[10px] uppercase tracking-wider text-[#6b7280]">Proxima accion</div>
           <div className="mt-1 text-[11px] text-[#c8c8c8]">{formatDateTime(prospect.next_action_at)}</div>
+        </div>
+      )}
+
+      {prospect.temperature_reason && (
+        <div className="mb-3 text-[11px] leading-5 text-[#8a8a8a]">
+          {prospect.temperature_reason}
         </div>
       )}
 

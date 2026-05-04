@@ -1,0 +1,37 @@
+const incoming = $('Preparar Prompt AI').first().json;
+const raw = $json.output ?? $json.text ?? $json.response ?? '{}';
+
+let parsed;
+try {
+  parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+} catch (error) {
+  parsed = {
+    reply_text: 'No pude procesarlo bien. Reenvia la accion en una sola linea y la registro.',
+    action_type: 'no_action',
+    prospect_id: null,
+    payload: {},
+  };
+}
+
+if (!parsed || typeof parsed !== 'object') {
+  parsed = {
+    reply_text: 'No pude procesarlo bien. Reenvia la accion en una sola linea y la registro.',
+    action_type: 'no_action',
+    prospect_id: null,
+    payload: {},
+  };
+}
+
+return [
+  {
+    json: {
+      ...incoming,
+      decision: {
+        reply_text: parsed.reply_text ?? 'Listo.',
+        action_type: parsed.action_type ?? 'no_action',
+        prospect_id: parsed.prospect_id ?? null,
+        payload: parsed.payload ?? {},
+      },
+    },
+  },
+];

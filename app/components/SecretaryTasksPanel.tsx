@@ -248,7 +248,7 @@ export default function SecretaryTasksPanel({
           />
           <InfoList
             title="Prospects dormidos"
-            items={(overview?.staleProspects ?? []).map((item) => `${item.name}${item.company ? ` - ${item.company}` : ''} (${item.days_without_contact} días)`)}
+            items={(overview?.staleProspects ?? []).map((item) => `${item.name}${item.company ? ` - ${item.company}` : ''} (${item.temperature}/${item.decision_status}, ${item.days_without_contact} días)`)}
             emptyText="No hay prospects dormidos detectados."
           />
         </section>

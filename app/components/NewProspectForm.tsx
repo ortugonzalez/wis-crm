@@ -1,7 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { STAGES, CHANNELS, Channel, Stage } from '@/app/lib/types'
+import {
+  STAGES,
+  CHANNELS,
+  PROSPECT_DECISIONS,
+  PROSPECT_TEMPERATURES,
+  Channel,
+  ProspectDecision,
+  ProspectTemperature,
+  Stage,
+} from '@/app/lib/types'
 
 interface Props {
   onClose: () => void
@@ -17,6 +26,10 @@ export default function NewProspectForm({ onClose, onCreated }: Props) {
     phone: '',
     channel: 'otro' as Channel,
     stage: 'frio' as Stage,
+    temperature: 'frio' as ProspectTemperature,
+    decision_status: 'avanzar' as ProspectDecision,
+    temperature_reason: '',
+    decision_reason: '',
     source: 'manual',
     notes: '',
     estimated_value: '',
@@ -137,6 +150,32 @@ export default function NewProspectForm({ onClose, onCreated }: Props) {
             </div>
 
             <div>
+              <label className="mb-1.5 block text-xs uppercase tracking-wider text-[#6b7280]">Temperatura</label>
+              <select
+                value={form.temperature}
+                onChange={(e) => set('temperature', e.target.value)}
+                className="w-full rounded-lg border border-[#222] bg-[#161616] px-3 py-2.5 text-sm text-[#f0f0f0] outline-none transition-colors focus:border-[#7c3aed]"
+              >
+                {PROSPECT_TEMPERATURES.map((temperature) => (
+                  <option key={temperature.id} value={temperature.id}>{temperature.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs uppercase tracking-wider text-[#6b7280]">Decision</label>
+              <select
+                value={form.decision_status}
+                onChange={(e) => set('decision_status', e.target.value)}
+                className="w-full rounded-lg border border-[#222] bg-[#161616] px-3 py-2.5 text-sm text-[#f0f0f0] outline-none transition-colors focus:border-[#7c3aed]"
+              >
+                {PROSPECT_DECISIONS.map((decision) => (
+                  <option key={decision.id} value={decision.id}>{decision.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
               <label className="mb-1.5 block text-xs uppercase tracking-wider text-[#6b7280]">Origen</label>
               <input
                 value={form.source}
@@ -154,6 +193,26 @@ export default function NewProspectForm({ onClose, onCreated }: Props) {
                 onChange={(e) => set('estimated_value', e.target.value)}
                 placeholder="150000"
                 className="w-full rounded-lg border border-[#222] bg-[#161616] px-3 py-2.5 text-sm text-[#f0f0f0] outline-none transition-colors focus:border-[#7c3aed] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="mb-1.5 block text-xs uppercase tracking-wider text-[#6b7280]">Motivo de temperatura</label>
+              <input
+                value={form.temperature_reason}
+                onChange={(e) => set('temperature_reason', e.target.value)}
+                placeholder="Ej: respondio esta semana, propuesta abierta, reunion pendiente..."
+                className="w-full rounded-lg border border-[#222] bg-[#161616] px-3 py-2.5 text-sm text-[#f0f0f0] outline-none transition-colors focus:border-[#7c3aed]"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="mb-1.5 block text-xs uppercase tracking-wider text-[#6b7280]">Motivo de decision</label>
+              <input
+                value={form.decision_reason}
+                onChange={(e) => set('decision_reason', e.target.value)}
+                placeholder="Ej: avanzar ahora, nutrir hasta junio, pausar 45 dias..."
+                className="w-full rounded-lg border border-[#222] bg-[#161616] px-3 py-2.5 text-sm text-[#f0f0f0] outline-none transition-colors focus:border-[#7c3aed]"
               />
             </div>
 

@@ -6,9 +6,13 @@ import {
   Activity,
   STAGES,
   CHANNELS,
+  PROSPECT_DECISIONS,
+  PROSPECT_TEMPERATURES,
   ACTIVITY_LABELS,
   Stage,
   Channel,
+  ProspectDecision,
+  ProspectTemperature,
   FollowUp,
   RawMessage,
   Priority,
@@ -48,6 +52,12 @@ export default function ProspectModal({ prospect, onClose, onUpdated, onDeleted 
     phone: prospect.phone ?? '',
     channel: prospect.channel as Channel,
     stage: prospect.stage as Stage,
+    temperature: prospect.temperature as ProspectTemperature,
+    temperature_reason: prospect.temperature_reason ?? '',
+    decision_status: prospect.decision_status as ProspectDecision,
+    decision_reason: prospect.decision_reason ?? '',
+    loss_reason: prospect.loss_reason ?? '',
+    paused_until: toDatetimeLocal(prospect.paused_until),
     source: prospect.source ?? 'manual',
     notes: prospect.notes ?? '',
     estimated_value: prospect.estimated_value?.toString() ?? '',
@@ -88,6 +98,7 @@ export default function ProspectModal({ prospect, onClose, onUpdated, onDeleted 
           ...form,
           estimated_value: form.estimated_value ? Number(form.estimated_value) : null,
           birthday: form.birthday || null,
+          paused_until: form.paused_until || null,
           last_contact_at: form.last_contact_at || null,
           next_action_at: form.next_action_at || null,
         }),
@@ -160,6 +171,8 @@ export default function ProspectModal({ prospect, onClose, onUpdated, onDeleted 
   }
 
   const stageConfig = STAGES.find((entry) => entry.id === (editing ? form.stage : prospect.stage))
+  const temperatureConfig = PROSPECT_TEMPERATURES.find((entry) => entry.id === (editing ? form.temperature : prospect.temperature))
+  const decisionConfig = PROSPECT_DECISIONS.find((entry) => entry.id === (editing ? form.decision_status : prospect.decision_status))
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -185,6 +198,16 @@ export default function ProspectModal({ prospect, onClose, onUpdated, onDeleted 
               <span className="rounded-full px-2.5 py-1 text-[11px] font-medium" style={{ backgroundColor: stageConfig?.bg, color: stageConfig?.color }}>
                 {stageConfig?.label}
               </span>
+              {temperatureConfig && (
+                <span className="rounded-full px-2.5 py-1 text-[11px] font-medium" style={{ backgroundColor: temperatureConfig.bg, color: temperatureConfig.color }}>
+                  {temperatureConfig.label}
+                </span>
+              )}
+              {decisionConfig && (
+                <span className="rounded-full px-2.5 py-1 text-[11px] font-medium" style={{ backgroundColor: decisionConfig.bg, color: decisionConfig.color }}>
+                  {decisionConfig.label}
+                </span>
+              )}
             </div>
           </div>
 
@@ -214,8 +237,18 @@ export default function ProspectModal({ prospect, onClose, onUpdated, onDeleted 
                         {STAGES.map((stage) => <option key={stage.id} value={stage.id}>{stage.label}</option>)}
                       </select>
                     </Field>
+                    <Field label="Temperatura">
+                      <select value={form.temperature} onChange={(e) => set('temperature', e.target.value)} className={inputClass}>
+                        {PROSPECT_TEMPERATURES.map((temperature) => <option key={temperature.id} value={temperature.id}>{temperature.label}</option>)}
+                      </select>
+                    </Field>
                     <Field label="Email"><input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} className={inputClass} /></Field>
                     <Field label="Telefono"><input value={form.phone} onChange={(e) => set('phone', e.target.value)} className={inputClass} /></Field>
+                    <Field label="Decision">
+                      <select value={form.decision_status} onChange={(e) => set('decision_status', e.target.value)} className={inputClass}>
+                        {PROSPECT_DECISIONS.map((decision) => <option key={decision.id} value={decision.id}>{decision.label}</option>)}
+                      </select>
+                    </Field>
                     <Field label="Canal">
                       <select value={form.channel} onChange={(e) => set('channel', e.target.value)} className={inputClass}>
                         {CHANNELS.map((channel) => <option key={channel.id} value={channel.id}>{channel.label}</option>)}
@@ -226,6 +259,10 @@ export default function ProspectModal({ prospect, onClose, onUpdated, onDeleted 
                     <Field label="Cumpleanos"><input type="date" value={form.birthday} onChange={(e) => set('birthday', e.target.value)} className={inputClass} /></Field>
                     <Field label="Ultimo contacto"><input type="datetime-local" value={form.last_contact_at} onChange={(e) => set('last_contact_at', e.target.value)} className={inputClass} /></Field>
                     <Field label="Proxima accion"><input type="datetime-local" value={form.next_action_at} onChange={(e) => set('next_action_at', e.target.value)} className={inputClass} /></Field>
+                    <Field label="Pausado hasta"><input type="datetime-local" value={form.paused_until} onChange={(e) => set('paused_until', e.target.value)} className={inputClass} /></Field>
+                    <Field label="Motivo de temperatura" full><input value={form.temperature_reason} onChange={(e) => set('temperature_reason', e.target.value)} className={inputClass} /></Field>
+                    <Field label="Motivo de decision" full><input value={form.decision_reason} onChange={(e) => set('decision_reason', e.target.value)} className={inputClass} /></Field>
+                    <Field label="Motivo de perdida" full><input value={form.loss_reason} onChange={(e) => set('loss_reason', e.target.value)} className={inputClass} /></Field>
                     <Field label="Notas" full><textarea rows={4} value={form.notes} onChange={(e) => set('notes', e.target.value)} className={`${inputClass} resize-none`} /></Field>
                     <div className="flex gap-3 sm:col-span-2">
                       <button onClick={() => setEditing(false)} className="flex-1 rounded-lg border border-[#222] py-2.5 text-sm text-[#6b7280] transition-colors hover:border-[#333] hover:text-[#f0f0f0]">Cancelar</button>
@@ -240,11 +277,32 @@ export default function ProspectModal({ prospect, onClose, onUpdated, onDeleted 
                     {prospect.phone && <Info label="Telefono" value={prospect.phone} />}
                     <Info label="Canal" value={CHANNELS.find((channel) => channel.id === prospect.channel)?.label ?? prospect.channel} />
                     <Info label="Origen" value={prospect.source} />
+                    <Info label="Temperatura" value={temperatureConfig?.label ?? prospect.temperature} />
+                    <Info label="Decision" value={decisionConfig?.label ?? prospect.decision_status} />
                     <Info label="Ultimo contacto" value={prospect.last_contact_at ? formatDateTime(prospect.last_contact_at) : 'Sin registrar'} />
                     <Info label="Proxima accion" value={prospect.next_action_at ? formatDateTime(prospect.next_action_at) : 'Sin registrar'} />
+                    <Info label="Pausado hasta" value={prospect.paused_until ? formatDateTime(prospect.paused_until) : 'Sin pausa'} />
                     <Info label="Cumpleanos" value={prospect.birthday ? formatDate(prospect.birthday) : 'Sin fecha'} />
                     <Info label="Actualizado" value={timeAgo(prospect.updated_at)} />
                     {prospect.estimated_value && <Info label="Valor estimado" value={`$${prospect.estimated_value.toLocaleString('es-AR')}`} accent />}
+                    {prospect.temperature_reason && (
+                      <div className="sm:col-span-2">
+                        <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#6b7280]">Motivo de temperatura</div>
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#a0a0a0]">{prospect.temperature_reason}</p>
+                      </div>
+                    )}
+                    {prospect.decision_reason && (
+                      <div className="sm:col-span-2">
+                        <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#6b7280]">Motivo de decision</div>
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#a0a0a0]">{prospect.decision_reason}</p>
+                      </div>
+                    )}
+                    {prospect.loss_reason && (
+                      <div className="sm:col-span-2">
+                        <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#6b7280]">Motivo de perdida</div>
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#a0a0a0]">{prospect.loss_reason}</p>
+                      </div>
+                    )}
                     {prospect.notes && (
                       <div className="sm:col-span-2">
                         <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#6b7280]">Notas</div>

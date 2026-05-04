@@ -1,5 +1,7 @@
 export type Stage = 'frio' | 'contactado' | 'reunion' | 'propuesta' | 'cliente'
 export type Channel = 'whatsapp' | 'linkedin' | 'email' | 'referido' | 'telegram' | 'otro'
+export type ProspectTemperature = 'frio' | 'tibio' | 'caliente'
+export type ProspectDecision = 'avanzar' | 'nutrir' | 'pausar' | 'descartar'
 export type ActivityType =
   | 'contacto'
   | 'reunion'
@@ -49,6 +51,12 @@ export interface Prospect {
   phone: string | null
   channel: Channel
   stage: Stage
+  temperature: ProspectTemperature
+  temperature_reason: string | null
+  decision_status: ProspectDecision
+  decision_reason: string | null
+  loss_reason: string | null
+  paused_until: string | null
   source: string
   notes: string | null
   estimated_value: number | null
@@ -263,7 +271,20 @@ export interface CommercialEngine {
     meetings: number
     proposals: number
     clients: number
+    hot: number
+    warm: number
+    nurture: number
+    paused: number
   }
+  focusContact: {
+    id: string
+    name: string
+    company: string | null
+    stage: Stage
+    temperature: ProspectTemperature
+    decision_status: ProspectDecision
+    reason: string
+  } | null
   suggestedMessages: {
     title: string
     body: string
@@ -361,6 +382,8 @@ export interface SecretaryOverview {
     name: string
     company: string | null
     stage: Stage
+    temperature: ProspectTemperature
+    decision_status: ProspectDecision
     days_without_contact: number
   }[]
   campaignPulse: {
@@ -385,6 +408,19 @@ export const CHANNELS: { id: Channel; label: string }[] = [
   { id: 'referido', label: 'Referido' },
   { id: 'telegram', label: 'Telegram' },
   { id: 'otro', label: 'Otro' },
+]
+
+export const PROSPECT_TEMPERATURES: { id: ProspectTemperature; label: string; color: string; bg: string }[] = [
+  { id: 'frio', label: 'Frio', color: '#6b7280', bg: '#6b728015' },
+  { id: 'tibio', label: 'Tibio', color: '#f59e0b', bg: '#f59e0b20' },
+  { id: 'caliente', label: 'Caliente', color: '#ef4444', bg: '#ef444420' },
+]
+
+export const PROSPECT_DECISIONS: { id: ProspectDecision; label: string; color: string; bg: string }[] = [
+  { id: 'avanzar', label: 'Avanzar', color: '#10b981', bg: '#10b98115' },
+  { id: 'nutrir', label: 'Nutrir', color: '#3b82f6', bg: '#3b82f615' },
+  { id: 'pausar', label: 'Pausar', color: '#f59e0b', bg: '#f59e0b20' },
+  { id: 'descartar', label: 'Descartar', color: '#6b7280', bg: '#6b728015' },
 ]
 
 export const ACTIVITY_LABELS: Record<ActivityType, string> = {

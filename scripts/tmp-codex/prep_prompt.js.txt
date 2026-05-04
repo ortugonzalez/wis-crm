@@ -1,0 +1,64 @@
+const incoming = $('Mensaje Unificado').first().json;
+const prospects = items.map(item => item.json).slice(0, 80);
+
+const schema = {
+  reply_text: 'string',
+  action_type: 'no_action | create_prospect | update_prospect_stage | add_note | create_follow_up | create_reminder | create_monthly_goal | create_goal_task | log_work_activity | complete_secretary_task | postpone_secretary_task | set_secretary_mode | show_pipeline | log_loss_reason',
+  prospect_id: 'uuid|null',
+  payload: {}
+};
+
+const chatInput = [
+  'MENSAJE DEL USUARIO:',
+  incoming.mensaje,
+  '',
+  'CONTEXTO CRM:',
+  JSON.stringify(prospects, null, 2),
+  '',
+  'FORMATO OBLIGATORIO DE RESPUESTA:',
+  JSON.stringify(schema, null, 2),
+  '',
+  'REGLAS DE CRITERIO:',
+  '- Distingue siempre etapa, temperatura y decision.',
+  '- etapa: frio, contactado, reunion, propuesta, cliente.',
+  '- temperatura: frio, tibio, caliente.',
+  '- decision_status: avanzar, nutrir, pausar, descartar.',
+  '- Si actualizas un prospecto, usa update_prospect_stage aunque tambien cambies temperatura, decision, loss_reason o paused_until.',
+  '- Si el usuario pide pausar o desestimar por ahora, usa decision_status=pausar y agrega decision_reason.',
+  '- Si el usuario descarta o pierde un prospect, usa decision_status=descartar y agrega loss_reason.',
+  '- Si el usuario pregunta por calientes o tibios, usa show_pipeline y basate en la temperatura guardada. No la contradigas despues.',
+  '',
+  'ESTILO DE RESPUESTA:',
+  '- reply_text debe ser corto, concreto y accionable.',
+  '- No cierres con preguntas tipo "seguimos?", "que queres hacer ahora?" o similares.',
+  '- No uses motivacion generica.',
+  '- Si listas pipeline o prioridades, menciona nombres reales y el motivo concreto.',
+  '- Si no hay datos suficientes, explica exactamente que falta cargar en una sola indicacion concreta.',
+  '',
+  'ACCIONES DISPONIBLES:',
+  '- create_monthly_goal: payload {title, target_value, unit, description}',
+  '- create_goal_task: payload {goal_id?, title, category, target_count}',
+  '- log_work_activity: payload {type, quantity, title, notes?, prospect_id?, goal_id?}',
+  '- complete_secretary_task: cuando responda hecho/listo/cumplido a la mision actual.',
+  '- postpone_secretary_task: cuando diga despues/no pude/mas tarde/paso.',
+  '- set_secretary_mode: payload {mode}',
+  '- show_pipeline: para /pipeline o pedidos de estado comercial.',
+  '- log_loss_reason: payload {prospect_id, reason}',
+  '',
+  'REGLAS OPERATIVAS:',
+  '- Responde SOLO JSON valido.',
+  '- Si no sabes goal_id para una tarea, crea igual la tarea sin goal_id y no inventes IDs.',
+  '- Si el usuario solo conversa o saluda, usa no_action.',
+  '- Si el usuario pide ideas para escribirle a un prospect, devuelve 3 angulos concretos en reply_text y action_type no_action.',
+].join('\n');
+
+return [
+  {
+    json: {
+      ...incoming,
+      prospects_context: prospects,
+      chatInput,
+      sessionId: String(incoming.chat_id),
+    },
+  },
+];

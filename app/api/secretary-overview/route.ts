@@ -98,6 +98,8 @@ export async function GET() {
       name: prospect.name,
       company: prospect.company,
       stage: prospect.stage,
+      temperature: prospect.temperature,
+      decision_status: prospect.decision_status,
       days_without_contact: daysAgo(prospect.last_contact_at || prospect.updated_at || prospect.created_at) ?? 0,
     }))
     .filter((prospect) => prospect.days_without_contact >= 7)

@@ -1,0 +1,68 @@
+const prospects = $('Preparar Prompt AI').first().json.prospects_context ?? [];
+const chat_id = $('Preparar Prompt AI').first().json.chat_id || '7512675688';
+
+const activos = prospects.filter(p => p.decision_status !== 'descartar');
+const perdidos = prospects.filter(p => p.decision_status === 'descartar');
+
+const byStage = {
+  propuesta: activos.filter(p => p.stage === 'propuesta'),
+  reunion: activos.filter(p => p.stage === 'reunion'),
+  contactado: activos.filter(p => p.stage === 'contactado'),
+  frio: activos.filter(p => p.stage === 'frio'),
+  cliente: activos.filter(p => p.stage === 'cliente'),
+};
+
+const calientes = activos.filter(p => p.temperature === 'caliente');
+const tibios = activos.filter(p => p.temperature === 'tibio');
+const pausados = activos.filter(p => p.decision_status === 'pausar');
+const nutrir = activos.filter(p => p.decision_status === 'nutrir');
+const propuestaVal = byStage.propuesta.reduce((sum, p) => sum + (Number(p.estimated_value) || 0), 0);
+const clienteVal = byStage.cliente.reduce((sum, p) => sum + (Number(p.estimated_value) || 0), 0);
+const fmtARS = (value) => value > 0 ? '$' + value.toLocaleString('es-AR') : '-';
+
+let msg = 'Pipeline\n\n';
+msg += `Calientes: ${calientes.length} | Tibios: ${tibios.length} | Activos: ${activos.length}\n`;
+msg += `Pausados: ${pausados.length} | Nutrir: ${nutrir.length}\n`;
+if (propuestaVal > 0 || clienteVal > 0) {
+  msg += `Valor en propuesta: ${fmtARS(propuestaVal)} | Clientes: ${fmtARS(clienteVal)}\n`;
+}
+
+function lineForProspect(p) {
+  const tags = [p.stage, p.temperature, p.decision_status].filter(Boolean).join(' / ');
+  const reason = p.decision_reason || p.temperature_reason || p.loss_reason || 'sin motivo registrado';
+  return `- ${p.name}${p.company ? ' / ' + p.company : ''} - ${tags} - ${reason}`;
+}
+
+if (calientes.length > 0) {
+  msg += `\nCalientes (${calientes.length}):\n`;
+  calientes.slice(0, 6).forEach(p => { msg += lineForProspect(p) + '\n'; });
+}
+
+if (tibios.length > 0) {
+  msg += `\nTibios (${tibios.length}):\n`;
+  tibios.slice(0, 6).forEach(p => { msg += lineForProspect(p) + '\n'; });
+}
+
+if (byStage.propuesta.length > 0) {
+  msg += `\nEn propuesta (${byStage.propuesta.length}):\n`;
+  byStage.propuesta.slice(0, 6).forEach(p => { msg += lineForProspect(p) + '\n'; });
+}
+
+if (byStage.reunion.length > 0) {
+  msg += `\nReunion agendada (${byStage.reunion.length}):\n`;
+  byStage.reunion.slice(0, 6).forEach(p => { msg += lineForProspect(p) + '\n'; });
+}
+
+if (pausados.length > 0) {
+  msg += `\nPausados (${pausados.length}):\n`;
+  pausados.slice(0, 6).forEach(p => {
+    msg += lineForProspect(p) + (p.paused_until ? ` - volver ${String(p.paused_until).slice(0, 10)}` : '') + '\n';
+  });
+}
+
+if (perdidos.length > 0) {
+  msg += `\nDescartados o perdidos (${perdidos.length}):\n`;
+  perdidos.slice(0, 6).forEach(p => { msg += lineForProspect(p) + '\n'; });
+}
+
+return [{ json: { pipeline_text: msg.trim(), chat_id } }];

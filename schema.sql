@@ -31,6 +31,12 @@ create table if not exists prospects (
   phone text,
   channel text not null default 'otro',
   stage text not null default 'frio',
+  temperature text not null default 'frio',
+  temperature_reason text,
+  decision_status text not null default 'avanzar',
+  decision_reason text,
+  loss_reason text,
+  paused_until timestamptz,
   source text not null default 'manual',
   notes text,
   estimated_value numeric,
@@ -40,8 +46,36 @@ create table if not exists prospects (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint prospects_channel_check check (channel in ('whatsapp', 'linkedin', 'email', 'referido', 'telegram', 'otro')),
-  constraint prospects_stage_check check (stage in ('frio', 'contactado', 'reunion', 'propuesta', 'cliente'))
+  constraint prospects_stage_check check (stage in ('frio', 'contactado', 'reunion', 'propuesta', 'cliente')),
+  constraint prospects_temperature_check check (temperature in ('frio', 'tibio', 'caliente')),
+  constraint prospects_decision_check check (decision_status in ('avanzar', 'nutrir', 'pausar', 'descartar'))
 );
+
+alter table public.prospects add column if not exists temperature text not null default 'frio';
+alter table public.prospects add column if not exists temperature_reason text;
+alter table public.prospects add column if not exists decision_status text not null default 'avanzar';
+alter table public.prospects add column if not exists decision_reason text;
+alter table public.prospects add column if not exists loss_reason text;
+alter table public.prospects add column if not exists paused_until timestamptz;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'prospects_temperature_check'
+  ) then
+    alter table public.prospects
+      add constraint prospects_temperature_check
+      check (temperature in ('frio', 'tibio', 'caliente'));
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint where conname = 'prospects_decision_check'
+  ) then
+    alter table public.prospects
+      add constraint prospects_decision_check
+      check (decision_status in ('avanzar', 'nutrir', 'pausar', 'descartar'));
+  end if;
+end $$;
 
 create table if not exists activities (
   id uuid primary key default gen_random_uuid(),

@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/app/lib/server-supabase'
 
+function sanitizeTemperature(value: unknown) {
+  const raw = String(value || 'frio').trim().toLowerCase()
+  return ['frio', 'tibio', 'caliente'].includes(raw) ? raw : 'frio'
+}
+
+function sanitizeDecision(value: unknown) {
+  const raw = String(value || 'avanzar').trim().toLowerCase()
+  return ['avanzar', 'nutrir', 'pausar', 'descartar'].includes(raw) ? raw : 'avanzar'
+}
+
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const supabase = getServerSupabase()
   const { id } = await params
@@ -21,6 +31,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       phone: body.phone,
       channel: body.channel,
       stage: body.stage,
+      temperature: sanitizeTemperature(body.temperature),
+      temperature_reason: body.temperature_reason ?? null,
+      decision_status: sanitizeDecision(body.decision_status),
+      decision_reason: body.decision_reason ?? null,
+      loss_reason: body.loss_reason ?? null,
+      paused_until: body.paused_until ?? null,
       source: body.source,
       notes: body.notes,
       estimated_value: body.estimated_value,

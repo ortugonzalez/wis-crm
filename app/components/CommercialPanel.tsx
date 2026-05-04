@@ -144,6 +144,25 @@ export default function CommercialPanel({
         </section>
 
         <section className="rounded-2xl border border-[#1a1a1a] bg-[#111] p-5">
+          <h2 className="text-base font-semibold text-[#f0f0f0]">Contacto foco</h2>
+          {engine?.focusContact ? (
+            <div className="mt-4 rounded-2xl border border-[#222] bg-[#0d0d0d] p-4">
+              <div className="text-sm font-semibold text-[#f0f0f0]">
+                {engine.focusContact.name}{engine.focusContact.company ? ` - ${engine.focusContact.company}` : ''}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                <span className="rounded-full bg-[#161616] px-2.5 py-1 text-[#c8c8c8]">{engine.focusContact.stage}</span>
+                <span className="rounded-full bg-[#161616] px-2.5 py-1 text-[#c8c8c8]">{engine.focusContact.temperature}</span>
+                <span className="rounded-full bg-[#161616] px-2.5 py-1 text-[#c8c8c8]">{engine.focusContact.decision_status}</span>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-[#c8c8c8]">{engine.focusContact.reason}</p>
+            </div>
+          ) : (
+            <Empty text="Todavia no hay un contacto foco calculado." />
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-[#1a1a1a] bg-[#111] p-5">
           <h2 className="text-base font-semibold text-[#f0f0f0]">Ritmo y enfoque</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <div className="rounded-2xl border border-[#222] bg-[#0d0d0d] p-4">

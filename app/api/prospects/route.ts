@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/app/lib/server-supabase'
 
+function sanitizeTemperature(value: unknown) {
+  const raw = String(value || 'frio').trim().toLowerCase()
+  return ['frio', 'tibio', 'caliente'].includes(raw) ? raw : 'frio'
+}
+
+function sanitizeDecision(value: unknown) {
+  const raw = String(value || 'avanzar').trim().toLowerCase()
+  return ['avanzar', 'nutrir', 'pausar', 'descartar'].includes(raw) ? raw : 'avanzar'
+}
+
 export async function GET() {
   const supabase = getServerSupabase()
   const { data, error } = await supabase
@@ -26,6 +36,12 @@ export async function POST(req: Request) {
     phone: body.phone || null,
     channel: body.channel || 'otro',
     stage: body.stage || 'frio',
+    temperature: sanitizeTemperature(body.temperature),
+    temperature_reason: body.temperature_reason || null,
+    decision_status: sanitizeDecision(body.decision_status),
+    decision_reason: body.decision_reason || null,
+    loss_reason: body.loss_reason || null,
+    paused_until: body.paused_until || null,
     source: body.source || 'manual',
     notes: body.notes || null,
     estimated_value: body.estimated_value || null,
